@@ -6,11 +6,9 @@ import argparse
 import calendar
 import difflib
 import fnmatch
-import html
 import importlib.util
 import json
 import os
-import re
 import shutil
 import sys
 import tempfile
