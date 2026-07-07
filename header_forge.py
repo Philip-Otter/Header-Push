@@ -57,17 +57,6 @@ def load_project_config(root: Path) -> dict: return json_helper.load_json_if_exi
     config_handler.get_project_config_path(root), config_handler.ConfigHandler.Default_Project_Config)
 
 
-def configured_languages(cfg: dict, pcfg: dict) -> Dict[str, dict]:
-    langs = dict(cfg.get('languages', {}))
-    inc = {x.lower() for x in pcfg.get('include_extensions', []) if x}
-    exc = {x.lower() for x in pcfg.get('exclude_extensions', []) if x}
-    if inc:
-        langs = {e: m for e, m in langs.items() if e.lower() in inc}
-    if exc:
-        langs = {e: m for e, m in langs.items() if e.lower() not in exc}
-    return langs
-
-
 def should_ignore_path(path: Path, root: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.PluginModule]) -> bool:
     base = root if root.is_dir() else root.parent
     try:
@@ -87,7 +76,7 @@ def should_ignore_path(path: Path, root: Path, cfg: dict, pcfg: dict, plugins: L
 
 
 def iter_supported_files(root: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.PluginModule]) -> List[Path]:
-    langs = configured_languages(cfg, pcfg)
+    langs = misc_helper.get_configured_languages(cfg, pcfg)
     if root.is_file():
         return [] if should_ignore_path(root, root.parent, cfg, pcfg, plugins) or root.suffix.lower() not in langs else [root]
     return sorted(p for p in root.rglob('*') if p.is_file() and p.suffix.lower() in langs and not should_ignore_path(p, root, cfg, pcfg, plugins))
@@ -106,54 +95,6 @@ def split_preamble(content: str, suffix: str, cfg: dict) -> Tuple[str, str]:
     return ''.join(pre), ''.join(lines)
 
 
-def safe_format(line: str, values: dict) -> str:
-    try:
-        return line.format(**values)
-    except KeyError as e:
-        return line.replace('{'+str(e.args[0])+'}', f'<missing:{e.args[0]}>')
-
-
-
-def template_core(path: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.PluginModule], values: dict) -> List[str]:
-    custom = plugin.plugin_call(plugins, 'render_template', values, path, {
-                         'global': cfg, 'project': pcfg})
-    if custom:
-        r = custom[-1]
-        return r.splitlines() if isinstance(r, str) else list(r)
-    lines = list(pcfg.get('template_lines') or cfg.get('template_lines', []))
-    for extra in plugin.plugin_call(plugins, 'get_template_lines', {'global': cfg, 'project': pcfg}):
-        if isinstance(extra, list):
-            lines += extra
-    out = []
-    for line in lines:
-        if not values.get('copyright_section') and '{copyright_section}' in line:
-            continue
-        if not values.get('license_section') and '{license_section}' in line:
-            continue
-        out.append(safe_format(line, values).rstrip())
-    return out
-
-
-def build_header(path: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.PluginModule], overrides: Optional[dict] = None) -> str:
-    lang = configured_languages(cfg, pcfg)[path.suffix.lower()]
-    lp = lang.get('line_prefix', '')
-    bo = lang.get('block_open', '')
-    bc = lang.get('block_close', '')
-    style = lang.get('style', 'block')
-    vals = file_helper.get_file_details(path, cfg, pcfg, plugins, overrides)
-    lines = []
-    if style == 'block' and bo:
-        lines.append(bo)
-    lines.append(f'{lp}{config_handler.ConfigHandler.Header_Begin}')
-    for line in template_core(path, cfg, pcfg, plugins, vals):
-        c = forge.strip_template(line)
-        lines.append(f'{lp}{c}' if c else lp.rstrip())
-    lines.append(f'{lp}{config_handler.ConfigHandler.Header_End}')
-    if style == 'block' and bc:
-        lines.append(bc)
-    return '\n'.join(lines).rstrip()+'\n\n'
-
-
 def apply_header_to_text(content: str, suffix: str, header: str, cfg: dict) -> str:
     pre, body = split_preamble(content, suffix, cfg)
     b = forge.find_managed_header_bounds(body)
@@ -166,7 +107,7 @@ def stage_change(path: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.
     original = file_helper.read_text_lossy(path)
     existed = forge.extract_managed_header(original) is not None
     updated = apply_header_to_text(original, path.suffix.lower(
-    ), build_header(path, cfg, pcfg, plugins, overrides), cfg)
+    ), forge.build_header(path, cfg, pcfg, plugins, overrides), cfg)
     op = 'Update Header' if existed and original != updated else 'Insert Header' if not existed and original != updated else 'No Change'
     return staged_change.StagedChange(path, original, updated, op)
 
@@ -854,7 +795,7 @@ class HeaderForgeApp:
         try:
             files = iter_supported_files(
                 self.project_root, self.cfg, self.project_cfg, self.state.plugins)
-            langmap = configured_languages(self.cfg, self.project_cfg)
+            langmap = misc_helper.get_configured_languages(self.cfg, self.project_cfg)
             base = self.project_root if self.project_root.is_dir() else self.project_root.parent
             rec = []
             first = not self.state.files and not preserved
@@ -1010,7 +951,7 @@ class HeaderForgeApp:
                 p = temp
             ch = stage_change(p, self.cfg, self.project_cfg,
                               self.state.plugins, self.get_overrides())
-            header = build_header(
+            header = forge.build_header(
                 p, self.cfg, self.project_cfg, self.state.plugins, self.get_overrides())
             self._set_text(self.header_preview, header)
             self._set_text(self.diff_preview, unified_diff(ch))

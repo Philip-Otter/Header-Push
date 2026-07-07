@@ -1,8 +1,11 @@
 import html
 import re
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
+from pathlib import Path
+from headerforge import plugin
 from configs import config_handler
-from helpers import misc_helper
+from helpers import misc_helper, file_helper
+from dataschemes import plugin_module
 
 class Forge:
 
@@ -100,3 +103,47 @@ def format_copyright(values: dict) -> str:
 
 def strip_template(
     line: str) -> str: return line[2:] if line.startswith('; ') else '' if line == ';' else line
+
+def build_header(path: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.PluginModule], overrides: Optional[dict] = None) -> str:
+    lang = misc_helper.get_configured_languages(cfg, pcfg)[path.suffix.lower()]
+    lp = lang.get('line_prefix', '')
+    bo = lang.get('block_open', '')
+    bc = lang.get('block_close', '')
+    style = lang.get('style', 'block')
+    vals = file_helper.get_file_details(path, cfg, pcfg, plugins, overrides)
+    lines = []
+    if style == 'block' and bo:
+        lines.append(bo)
+    lines.append(f'{lp}{config_handler.ConfigHandler.Header_Begin}')
+    for line in template_core(path, cfg, pcfg, plugins, vals):
+        c = strip_template(line)
+        lines.append(f'{lp}{c}' if c else lp.rstrip())
+    lines.append(f'{lp}{config_handler.ConfigHandler.Header_End}')
+    if style == 'block' and bc:
+        lines.append(bc)
+    return '\n'.join(lines).rstrip()+'\n\n'
+
+def template_core(path: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.PluginModule], values: dict) -> List[str]:
+    custom = plugin.plugin_call(plugins, 'render_template', values, path, {
+                         'global': cfg, 'project': pcfg})
+    if custom:
+        r = custom[-1]
+        return r.splitlines() if isinstance(r, str) else list(r)
+    lines = list(pcfg.get('template_lines') or cfg.get('template_lines', []))
+    for extra in plugin.plugin_call(plugins, 'get_template_lines', {'global': cfg, 'project': pcfg}):
+        if isinstance(extra, list):
+            lines += extra
+    out = []
+    for line in lines:
+        if not values.get('copyright_section') and '{copyright_section}' in line:
+            continue
+        if not values.get('license_section') and '{license_section}' in line:
+            continue
+        out.append(safe_format(line, values).rstrip())
+    return out
+
+def safe_format(line: str, values: dict) -> str:
+    try:
+        return line.format(**values)
+    except KeyError as e:
+        return line.replace('{'+str(e.args[0])+'}', f'<missing:{e.args[0]}>')
