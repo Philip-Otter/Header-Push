@@ -37,7 +37,6 @@ FIELD_LABELS = {'organization': ['Organization'], 'artifact_type': ['Type', 'Art
 PATCH_LINE_RE = re.compile(
     r'^(?P<patch_type>.+?)\s+Patch\s*:\s*(?P<version>.+)$', re.I)
 
-
 @dataclass
 class FileRecord:
     path: Path
@@ -48,19 +47,9 @@ class FileRecord:
 
 
 @dataclass
-class StagedChange:
-    path: Path
-    original: str
-    updated: str
-    operation: str
-    @property
-    def changed(self) -> bool: return self.original != self.updated
-
-
-@dataclass
 class AppState:
     files: List[FileRecord] = field(default_factory=list)
-    staged: Dict[Path, StagedChange] = field(default_factory=dict)
+    staged: Dict[Path, dataschemes.staged_change.StagedChange] = field(default_factory=dict)
     plugins: List[dataschemes.plugin_module.PluginModule] = field(default_factory=list)
     last_push_backups: Dict[Path, Path] = field(default_factory=dict)
 
@@ -459,16 +448,16 @@ def apply_header_to_text(content: str, suffix: str, header: str, cfg: dict) -> s
     return pre+body
 
 
-def stage_change(path: Path, cfg: dict, pcfg: dict, plugins: List[dataschemes.plugin_module.PluginModule], overrides: Optional[dict]) -> StagedChange:
+def stage_change(path: Path, cfg: dict, pcfg: dict, plugins: List[dataschemes.plugin_module.PluginModule], overrides: Optional[dict]) -> dataschemes.staged_change.StagedChange:
     original = read_text_lossy(path)
     existed = extract_managed_header(original) is not None
     updated = apply_header_to_text(original, path.suffix.lower(
     ), build_header(path, cfg, pcfg, plugins, overrides), cfg)
     op = 'Update Header' if existed and original != updated else 'Insert Header' if not existed and original != updated else 'No Change'
-    return StagedChange(path, original, updated, op)
+    return dataschemes.staged_change.StagedChange(path, original, updated, op)
 
 
-def unified_diff(change: StagedChange) -> str: return ''.join(difflib.unified_diff(change.original.splitlines(True),
+def unified_diff(change: dataschemes.staged_change.StagedChange) -> str: return ''.join(difflib.unified_diff(change.original.splitlines(True),
                                                                                    change.updated.splitlines(True), fromfile=f'before/{change.path.name}', tofile=f'after/{change.path.name}'))
 
 
