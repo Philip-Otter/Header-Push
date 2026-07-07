@@ -18,7 +18,7 @@ import traceback
 from dataschemes import plugin_module, staged_change, file_record
 from configs import config_handler
 from help import help_handler
-from helpers import json_helper, misc_helper
+from helpers import json_helper, misc_helper, file_helper
 from headerforge import forge
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -58,14 +58,6 @@ def config_path() -> Path:
 
 def load_project_config(root: Path) -> dict: return json_helper.load_json_if_exists(
     config_handler.get_project_config_path(root), config_handler.ConfigHandler.Default_Project_Config)
-
-
-
-def read_text_lossy(path: Path) -> str:
-    try:
-        return path.read_text(encoding='utf-8')
-    except UnicodeDecodeError:
-        return path.read_text(encoding=sys.getdefaultencoding(), errors='replace')
 
 
 def write_text_atomic(path: Path, text: str) -> None:
@@ -272,7 +264,7 @@ def apply_header_to_text(content: str, suffix: str, header: str, cfg: dict) -> s
 
 
 def stage_change(path: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.PluginModule], overrides: Optional[dict]) -> staged_change.StagedChange:
-    original = read_text_lossy(path)
+    original = file_helper.read_text_lossy(path)
     existed = forge.extract_managed_header(original) is not None
     updated = apply_header_to_text(original, path.suffix.lower(
     ), build_header(path, cfg, pcfg, plugins, overrides), cfg)
@@ -996,7 +988,7 @@ class HeaderForgeApp:
                 rel = str(p.relative_to(base)) if p.is_relative_to(
                     base) else str(p)
                 status = 'Existing' if forge.extract_managed_header(
-                    read_text_lossy(p)) else 'Missing'
+                    file_helper.read_text_lossy(p)) else 'Missing'
                 lang = langmap.get(p.suffix.lower(), {}).get(
                     'name', p.suffix.lower())
                 rec.append(file_record.FileRecord(p, rel, lang, status,
@@ -1074,7 +1066,7 @@ class HeaderForgeApp:
             messagebox.showinfo(config_handler.ConfigHandler.App_Name, 'Select a file first.')
             self.log('Import failed: no file selected.', 'ERROR')
             return
-        h = forge.extract_managed_header(read_text_lossy(p))
+        h = forge.extract_managed_header(file_helper.read_text_lossy(p))
         if not h:
             messagebox.showinfo(
                 config_handler.ConfigHandler.App_Name, 'Selected file does not contain a managed HeaderForge header.')
