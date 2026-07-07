@@ -58,25 +58,6 @@ def config_path() -> Path:
 def load_project_config(root: Path) -> dict: return json_helper.load_json_if_exists(
     config_handler.get_project_config_path(root), config_handler.ConfigHandler.Default_Project_Config)
 
-
-def write_text_atomic(path: Path, text: str) -> None:
-    # Atomic-ish write: temp file in the same directory, flush/fsync, then os.replace.
-    path = path.resolve()
-    fd, tmp = tempfile.mkstemp(
-        prefix=f'.{path.name}.', suffix='.tmp', dir=str(path.parent))
-    try:
-        with os.fdopen(fd, 'w', encoding='utf-8', newline='\n') as f:
-            f.write(text)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp, path)
-    except Exception:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
-
 def load_plugins(global_cfg: dict, project_root: Optional[Path], project_cfg: dict) -> List[plugin_module.PluginModule]:
     paths = []
     if global_cfg.get('options', {}).get('global_plugins_enabled', True):
@@ -1191,7 +1172,7 @@ class HeaderForgeApp:
                         ch.path.name+self.cfg.get('options', {}).get('backup_extension', '.bak'))
                     shutil.copy2(ch.path, backup)
                     self.state.last_push_backups[ch.path] = backup
-                write_text_atomic(ch.path, ch.updated)
+                file_helper.atomic_write_text(ch.path, ch.updated)
                 pushed += 1
             except Exception as e:
                 errors.append(f'{ch.path}: {e}')
@@ -1275,7 +1256,7 @@ def cli_apply(path: Path, dry=False) -> int:
                 if cfg.get('options', {}).get('backup_before_write', True):
                     shutil.copy2(f, f.with_name(
                         f.name+cfg.get('options', {}).get('backup_extension', '.bak')))
-                write_text_atomic(f, ch.updated)
+                file_helper.atomic_write_text(f, ch.updated)
         else:
             print(f'SKIPPED: {f}')
     print(f'Processed {len(files)} file(s). Changed {changed}.')
