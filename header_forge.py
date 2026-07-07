@@ -29,8 +29,8 @@ except Exception as exc:
 else:
     TK_IMPORT_ERROR = None
 
-APP_NAME = 'HeaderForge'
-APP_VERSION = '3.1.0'
+APP_NAME = 'HeaderPush'
+APP_VERSION = '1.0.0'
 CONFIG_FILE = 'headerforge.json'
 PROJECT_CONFIG_FILE = 'headerforge.project.json'
 PLUGIN_DIR = 'headerforge_plugins'
@@ -39,7 +39,7 @@ HEADER_BEGIN = 'HEADERFORGE-BEGIN'
 HEADER_END = 'HEADERFORGE-END'
 
 DEFAULT_ARTIFACT_TYPES = ['script', 'application',
-                          'library', 'service', 'module', 'tool', 'workflow']
+                          'library', 'service', 'module', 'tool']
 DEFAULT_RISK_LEVELS = ['Low', 'Medium', 'High', 'Critical']
 DEFAULT_BUILD_STAGES = ['Pre-Alpha', 'Alpha', 'Beta',
                         'Release Candidate', 'Release', 'Maintenance', 'Deprecated']
