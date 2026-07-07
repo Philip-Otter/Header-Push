@@ -61,14 +61,6 @@ def deep_merge(base: dict, overlay: dict) -> dict:
     return out
 
 
-def save_json(path: Path, data: dict) -> None:
-    # Ensure profile/config directories exist before writing. This is what lets
-    # the default user config live under AppData/HeaderForge instead of beside
-    # the script.
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=4), encoding='utf-8', newline='\n')
-
-
 def load_json_if_exists(path: Path, default: dict) -> dict: return deep_merge(default,
                                                                               json.loads(path.read_text(encoding='utf-8'))) if path.exists() else json_helper.clone_json(default)
 
@@ -930,7 +922,7 @@ class HeaderForgeApp:
     def save_user_defaults(self):
         try:
             self.cfg = self.current_user_config()
-            save_json(config_path(), self.cfg)
+            json_helper.save_json(config_path(), self.cfg)
             self.set_config_location_label()
             self.update_dashboard()
             self.refresh_previews()
@@ -978,7 +970,7 @@ class HeaderForgeApp:
             self.cfg = load_config()
         else:
             self.cfg = self.current_user_config()
-            save_json(CONFIG_OVERRIDE_PATH, self.cfg)
+            json_helper.save_json(CONFIG_OVERRIDE_PATH, self.cfg)
         self._load_fields()
         self.set_config_location_label()
         self.update_dashboard()
@@ -995,7 +987,7 @@ class HeaderForgeApp:
         data = {'template_name': self.cfg.get('template_name', 'Custom HeaderForge Template'), 'defaults': self.get_overrides(
         ), 'settings': self.cfg.get('settings', {}), 'template_lines': self.cfg.get('template_lines', [])}
         try:
-            save_json(Path(path), data)
+            json_helper.save_json(Path(path), data)
             self.log(f'Exported template: {path}', 'SUCCESS')
         except Exception as e:
             messagebox.showerror(
@@ -1072,7 +1064,7 @@ class HeaderForgeApp:
             self.log(f'Project config already exists: {p}')
             self.load_project_config_into_editor()
             return
-        save_json(p, config_handler.ConfigHandler.Default_Project_Config)
+        json_helper.save_json(p, config_handler.ConfigHandler.Default_Project_Config)
         self.project_cfg = load_project_config(self.project_root)
         self.load_project_config_into_editor()
         self.log(f'Created project config: {p}', 'SUCCESS')
@@ -1081,7 +1073,7 @@ class HeaderForgeApp:
         try:
             self.project_cfg = deep_merge(config_handler.ConfigHandler.Default_Project_Config, json.loads(
                 self.config_text.get('1.0', 'end-1c').strip() or json.dumps(self.project_cfg)))
-            save_json(project_config_path(self.project_root), self.project_cfg)
+            json_helper.save_json(project_config_path(self.project_root), self.project_cfg)
             selected = self.capture_selected_paths()
             self.reload_plugins(initial=True)
             self.scan(preserved_selection=selected)
@@ -1104,7 +1096,7 @@ class HeaderForgeApp:
             'Applied settings in memory. Restart app to refresh existing combo dropdown lists fully.', 'SUCCESS')
         self.refresh_previews()
 
-    def save_global_config(self): self.apply_settings_in_memory(); save_json(config_path(
+    def save_global_config(self): self.apply_settings_in_memory(); json_helper.save_json(config_path(
     ), self.cfg); self.set_config_location_label(); self.log(f'Saved user config: {config_path()}', 'SUCCESS')
 
     def create_plugin_dir(self):
@@ -1514,7 +1506,7 @@ def main() -> int:
         root.mkdir(parents=True, exist_ok=True)
         p = project_config_path(root)
         if not p.exists():
-            save_json(p, config_handler.ConfigHandler.Default_Project_Config)
+            json_helper.save_json(p, config_handler.ConfigHandler.Default_Project_Config)
             print(f'CREATED: {p}')
         else:
             print(f'EXISTS: {p}')
