@@ -17,7 +17,7 @@ from dataschemes import plugin_module, staged_change, file_record
 from configs import config_handler
 from help import help_handler
 from helpers import json_helper, misc_helper, file_helper
-from headerforge import forge
+from headerforge import forge, plugin
 from gui import tool_tip
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -58,45 +58,6 @@ def config_path() -> Path:
 def load_project_config(root: Path) -> dict: return json_helper.load_json_if_exists(
     config_handler.get_project_config_path(root), config_handler.ConfigHandler.Default_Project_Config)
 
-def load_plugins(global_cfg: dict, project_root: Optional[Path], project_cfg: dict) -> List[plugin_module.PluginModule]:
-    paths = []
-    if global_cfg.get('options', {}).get('global_plugins_enabled', True):
-        gd = config_handler.get_user_config_dir()/config_handler.ConfigHandler.Plugin_Directory
-        paths += sorted(gd.glob('*.py')) if gd.exists() else []
-    if project_root and project_cfg.get('enabled', True) and project_cfg.get('plugins_enabled', True) and global_cfg.get('options', {}).get('project_plugins_enabled', True):
-        root = project_root if project_root.is_dir() else project_root.parent
-        pd = root/project_cfg.get('project_plugins_directory', config_handler.ConfigHandler.Plugin_Directory)
-        paths += sorted(pd.glob('*.py')) if pd.exists() else []
-    out = []
-    for path in paths:
-        try:
-            name = f'hf_plugin_{path.stem}_{abs(hash(path))}'
-            spec = importlib.util.spec_from_file_location(name, path)
-            if not spec or not spec.loader:
-                raise RuntimeError('Could not create import spec')
-            mod = importlib.util.module_from_spec(spec)
-            sys.modules[name] = mod
-            spec.loader.exec_module(mod)
-            out.append(plugin_module.PluginModule(path.stem, path, mod))
-        except Exception:
-            out.append(plugin_module.PluginModule(path.stem, path,
-                       None, traceback.format_exc()))
-    return out
-
-
-def plugin_call(plugins: Iterable[plugin_module.PluginModule], func_name: str, *args: Any) -> List[Any]:
-    out = []
-    for p in plugins:
-        if p.error or p.module is None:
-            continue
-        f = getattr(p.module, func_name, None)
-        if callable(f):
-            try:
-                out.append(f(*args))
-            except Exception:
-                p.error = traceback.format_exc()
-    return out
-
 
 def configured_languages(cfg: dict, pcfg: dict) -> Dict[str, dict]:
     langs = dict(cfg.get('languages', {}))
@@ -124,7 +85,7 @@ def should_ignore_path(path: Path, root: Path, cfg: dict, pcfg: dict, plugins: L
     rels = rel.as_posix()
     if any(fnmatch.fnmatch(path.name, p) or fnmatch.fnmatch(rels, p) for p in pats):
         return True
-    return any(x is True for x in plugin_call(plugins, 'should_ignore', path, root, {'global': cfg, 'project': pcfg}))
+    return any(x is True for x in plugin.plugin_call(plugins, 'should_ignore', path, root, {'global': cfg, 'project': pcfg}))
 
 
 def iter_supported_files(root: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.PluginModule]) -> List[Path]:
@@ -154,40 +115,15 @@ def safe_format(line: str, values: dict) -> str:
         return line.replace('{'+str(e.args[0])+'}', f'<missing:{e.args[0]}>')
 
 
-def file_values(path: Optional[Path], cfg: dict, pcfg: dict, plugins: List[plugin_module.PluginModule], overrides: Optional[dict] = None) -> dict:
-    v = dict(cfg.get('defaults', {}))
-    v.update(pcfg.get('header_defaults', {})
-             if pcfg.get('enabled', True) else {})
-    if overrides:
-        v.update({k: x for k, x in overrides.items() if x is not None})
-    v.update({'filename': path.name, 'filename_stem': path.stem, 'extension': path.suffix.lower(), 'relative_path': str(path)} if path else {
-             'filename': 'ExampleFile.cs', 'filename_stem': 'ExampleFile', 'extension': '.cs', 'relative_path': 'ExampleFile.cs'})
-    v['build_stage'] = config_handler.normalize_stage(v.get('build_stage'))
-    v['created'] = misc_helper.created_label(v.get('created_date', ''))
-    v['copyright_section'] = forge.format_copyright(v)
-    v['license_section'] = f"License   : {v.get('license', '').strip()}" if v.get(
-        'license', '').strip() else ''
-    for res in plugin_call(plugins, 'alter_header_values', v, path, {'global': cfg, 'project': pcfg}):
-        if isinstance(res, dict):
-            v.update(res)
-    for _ in range(3):
-        for k, x in list(v.items()):
-            if isinstance(x, str):
-                try:
-                    v[k] = x.format(**v)
-                except Exception:
-                    pass
-    return v
-
 
 def template_core(path: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.PluginModule], values: dict) -> List[str]:
-    custom = plugin_call(plugins, 'render_template', values, path, {
+    custom = plugin.plugin_call(plugins, 'render_template', values, path, {
                          'global': cfg, 'project': pcfg})
     if custom:
         r = custom[-1]
         return r.splitlines() if isinstance(r, str) else list(r)
     lines = list(pcfg.get('template_lines') or cfg.get('template_lines', []))
-    for extra in plugin_call(plugins, 'get_template_lines', {'global': cfg, 'project': pcfg}):
+    for extra in plugin.plugin_call(plugins, 'get_template_lines', {'global': cfg, 'project': pcfg}):
         if isinstance(extra, list):
             lines += extra
     out = []
@@ -206,7 +142,7 @@ def build_header(path: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.
     bo = lang.get('block_open', '')
     bc = lang.get('block_close', '')
     style = lang.get('style', 'block')
-    vals = file_values(path, cfg, pcfg, plugins, overrides)
+    vals = file_helper.get_file_details(path, cfg, pcfg, plugins, overrides)
     lines = []
     if style == 'block' and bo:
         lines.append(bo)
@@ -520,7 +456,7 @@ class HeaderForgeApp:
             self._add_field(*args)
 
     def _add_plugin_fields(self):
-        for fields in plugin_call(self.state.plugins, 'get_header_fields'):
+        for fields in plugin.plugin_call(self.state.plugins, 'get_header_fields'):
             if isinstance(fields, list):
                 for f in fields:
                     if isinstance(f, dict) and f.get('key') not in self.field_vars:
@@ -657,7 +593,7 @@ class HeaderForgeApp:
         calendar.month_name[dt.month]); self.day_var.set(str(dt.day)); self.field_vars['created_date'].set(dt.isoformat())
 
     def _load_fields(self):
-        vals = file_values(None, self.cfg, self.project_cfg,
+        vals = file_helper.get_file_details(None, self.cfg, self.project_cfg,
                            self.state.plugins, None)
         for k, v in self.field_vars.items():
             val = str(vals.get(k, v.get()))
@@ -894,7 +830,7 @@ class HeaderForgeApp:
         self.reload_plugins(initial=True)
 
     def reload_plugins(self, initial=False):
-        self.state.plugins = load_plugins(
+        self.state.plugins = plugin.load_plugins(
             self.cfg, self.project_root, self.project_cfg)
         for p in self.state.plugins:
             if not p.error and callable(getattr(p.module, 'register', None)):
@@ -1232,7 +1168,7 @@ def cli_scan(path: Path) -> int:
     """This is a CLI command to scan for supported files in the given directory."""
     cfg = config_handler.load_config()
     pcfg = load_project_config(path if path.is_dir() else path.parent)
-    plugins = load_plugins(cfg, path if path.is_dir() else path.parent, pcfg)
+    plugins = plugin.load_plugins(cfg, path if path.is_dir() else path.parent, pcfg)
     files = iter_supported_files(path, cfg, pcfg, plugins)
     for f in files:
         print(f)
@@ -1244,7 +1180,7 @@ def cli_apply(path: Path, dry=False) -> int:
     """This is a CLI command to apply headers to files."""
     cfg = config_handler.load_config()
     pcfg = load_project_config(path if path.is_dir() else path.parent)
-    plugins = load_plugins(cfg, path if path.is_dir() else path.parent, pcfg)
+    plugins = plugin.load_plugins(cfg, path if path.is_dir() else path.parent, pcfg)
     files = iter_supported_files(path, cfg, pcfg, plugins)
     changed = 0
     for f in files:
