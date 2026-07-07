@@ -6,11 +6,9 @@ import argparse
 import calendar
 import difflib
 import fnmatch
-import importlib.util
 import json
 import os
 import shutil
-import sys
 import tempfile
 import traceback
 from dataschemes import plugin_module, staged_change, file_record
@@ -22,7 +20,7 @@ from gui import tool_tip
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 try:
     import tkinter as tk
