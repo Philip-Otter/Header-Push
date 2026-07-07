@@ -20,6 +20,7 @@ from configs import config_handler
 from help import help_handler
 from helpers import json_helper, misc_helper, file_helper
 from headerforge import forge
+from gui import tool_tip
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
@@ -260,31 +261,6 @@ def stage_change(path: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.
 def unified_diff(change: staged_change.StagedChange) -> str: return ''.join(difflib.unified_diff(change.original.splitlines(True),
                                                                                    change.updated.splitlines(True), fromfile=f'before/{change.path.name}', tofile=f'after/{change.path.name}'))
 
-
-class ToolTip:
-    def __init__(self, widget, text: str):
-        self.widget = widget
-        self.text = text
-        self.window = None
-        widget.bind('<Enter>', self.show, add='+')
-        widget.bind('<Leave>', self.hide, add='+')
-
-    def show(self, _=None):
-        if self.window or not self.text:
-            return
-        self.window = tk.Toplevel(self.widget)
-        self.window.wm_overrideredirect(True)
-        self.window.wm_geometry(
-            f'+{self.widget.winfo_rootx()+20}+{self.widget.winfo_rooty()+self.widget.winfo_height()+8}')
-        ttk.Label(self.window, text=self.text, justify='left', padding=(
-            8, 5), relief='solid', borderwidth=1, wraplength=420).pack()
-
-    def hide(self, _=None):
-        if self.window:
-            self.window.destroy()
-            self.window = None
-
-
 class HeaderForgeApp:
     def __init__(self, root: 'tk.Tk'):
         self.root = root
@@ -328,7 +304,7 @@ class HeaderForgeApp:
         b = ttk.Button(parent, text=text, command=cmd, style='Toolbar.TButton')
         b.pack(side='left', padx=3, pady=2)
         if tip:
-            ToolTip(b, tip)
+            tool_tip.ToolTip(b, tip)
         return b
 
     def _shell(self):
@@ -432,7 +408,7 @@ class HeaderForgeApp:
         ttk.Label(fr, text='Filter:').pack(side='left')
         e = ttk.Entry(fr, textvariable=self.filter_var)
         e.pack(side='left', fill='x', expand=True, padx=4)
-        ToolTip(e, 'Filter without losing selection.')
+        tool_tip.ToolTip(e, 'Filter without losing selection.')
         self.filter_var.trace_add('write', lambda *_: self.populate_tree())
         cols = ('selected', 'status', 'language', 'path')
         self.tree = ttk.Treeview(parent, columns=cols,
@@ -509,7 +485,7 @@ class HeaderForgeApp:
         b = ttk.Button(parent, text=text, command=command)
         b.pack(side='left', padx=3, pady=2)
         if tip:
-            ToolTip(b, tip)
+            tool_tip.ToolTip(b, tip)
         return b
 
     def settings_list(self, key, fallback): return list(
@@ -523,7 +499,7 @@ class HeaderForgeApp:
         self._builder_row += 1
         lab = ttk.Label(self.builder_frame, text=label+':')
         lab.grid(row=r, column=0, sticky='nw', padx=(0, 8), pady=4)
-        ToolTip(lab, self._tip(key))
+        tool_tip.ToolTip(lab, self._tip(key))
         var = tk.StringVar(value=default)
         self.field_vars[key] = var
         if kind == 'text':
@@ -557,7 +533,7 @@ class HeaderForgeApp:
             w.grid(row=r, column=1, sticky='ew', pady=4)
             var.trace_add('write', lambda *_: self.refresh_previews())
         if 'w' in locals():
-            ToolTip(w, self._tip(key))
+            tool_tip.ToolTip(w, self._tip(key))
         self.builder_frame.columnconfigure(1, weight=1)
 
     def _add_standard_fields(self):
