@@ -15,7 +15,7 @@ import shutil
 import sys
 import tempfile
 import traceback
-import dataschemes
+from dataschemes import plugin_module, staged_change
 from configs import config_handler
 from help import help_handler
 from dataclasses import dataclass, field
@@ -45,12 +45,11 @@ class FileRecord:
     status: str
     selected: bool = False
 
-
 @dataclass
 class AppState:
     files: List[FileRecord] = field(default_factory=list)
-    staged: Dict[Path, dataschemes.staged_change.StagedChange] = field(default_factory=dict)
-    plugins: List[dataschemes.plugin_module.PluginModule] = field(default_factory=list)
+    staged: Dict[Path, staged_change.StagedChange] = field(default_factory=dict)
+    plugins: List[plugin_module.PluginModule] = field(default_factory=list)
     last_push_backups: Dict[Path, Path] = field(default_factory=dict)
 
 
@@ -263,7 +262,7 @@ def parse_managed_header_values(header_text: str) -> dict:
     return values
 
 
-def load_plugins(global_cfg: dict, project_root: Optional[Path], project_cfg: dict) -> List[dataschemes.plugin_module.PluginModule]:
+def load_plugins(global_cfg: dict, project_root: Optional[Path], project_cfg: dict) -> List[plugin_module.PluginModule]:
     paths = []
     if global_cfg.get('options', {}).get('global_plugins_enabled', True):
         gd = user_config_dir()/config_handler.ConfigHandler.Plugin_Directory
@@ -282,14 +281,14 @@ def load_plugins(global_cfg: dict, project_root: Optional[Path], project_cfg: di
             mod = importlib.util.module_from_spec(spec)
             sys.modules[name] = mod
             spec.loader.exec_module(mod)
-            out.append(dataschemes.plugin_module.PluginModule(path.stem, path, mod))
+            out.append(plugin_module.PluginModule(path.stem, path, mod))
         except Exception:
-            out.append(dataschemes.plugin_module.PluginModule(path.stem, path,
+            out.append(plugin_module.PluginModule(path.stem, path,
                        None, traceback.format_exc()))
     return out
 
 
-def plugin_call(plugins: Iterable[dataschemes.plugin_module.PluginModule], func_name: str, *args: Any) -> List[Any]:
+def plugin_call(plugins: Iterable[plugin_module.PluginModule], func_name: str, *args: Any) -> List[Any]:
     out = []
     for p in plugins:
         if p.error or p.module is None:
@@ -314,7 +313,7 @@ def configured_languages(cfg: dict, pcfg: dict) -> Dict[str, dict]:
     return langs
 
 
-def should_ignore_path(path: Path, root: Path, cfg: dict, pcfg: dict, plugins: List[dataschemes.plugin_module.PluginModule]) -> bool:
+def should_ignore_path(path: Path, root: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.PluginModule]) -> bool:
     base = root if root.is_dir() else root.parent
     try:
         rel = path.relative_to(base)
@@ -332,7 +331,7 @@ def should_ignore_path(path: Path, root: Path, cfg: dict, pcfg: dict, plugins: L
     return any(x is True for x in plugin_call(plugins, 'should_ignore', path, root, {'global': cfg, 'project': pcfg}))
 
 
-def iter_supported_files(root: Path, cfg: dict, pcfg: dict, plugins: List[dataschemes.plugin_module.PluginModule]) -> List[Path]:
+def iter_supported_files(root: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.PluginModule]) -> List[Path]:
     langs = configured_languages(cfg, pcfg)
     if root.is_file():
         return [] if should_ignore_path(root, root.parent, cfg, pcfg, plugins) or root.suffix.lower() not in langs else [root]
@@ -374,7 +373,7 @@ def format_copyright(values: dict) -> str:
     return f'Copyright : © {years} {owner}'
 
 
-def file_values(path: Optional[Path], cfg: dict, pcfg: dict, plugins: List[dataschemes.plugin_module.PluginModule], overrides: Optional[dict] = None) -> dict:
+def file_values(path: Optional[Path], cfg: dict, pcfg: dict, plugins: List[plugin_module.PluginModule], overrides: Optional[dict] = None) -> dict:
     v = dict(cfg.get('defaults', {}))
     v.update(pcfg.get('header_defaults', {})
              if pcfg.get('enabled', True) else {})
@@ -400,7 +399,7 @@ def file_values(path: Optional[Path], cfg: dict, pcfg: dict, plugins: List[datas
     return v
 
 
-def template_core(path: Path, cfg: dict, pcfg: dict, plugins: List[dataschemes.plugin_module.PluginModule], values: dict) -> List[str]:
+def template_core(path: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.PluginModule], values: dict) -> List[str]:
     custom = plugin_call(plugins, 'render_template', values, path, {
                          'global': cfg, 'project': pcfg})
     if custom:
@@ -420,7 +419,7 @@ def template_core(path: Path, cfg: dict, pcfg: dict, plugins: List[dataschemes.p
     return out
 
 
-def build_header(path: Path, cfg: dict, pcfg: dict, plugins: List[dataschemes.plugin_module.PluginModule], overrides: Optional[dict] = None) -> str:
+def build_header(path: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.PluginModule], overrides: Optional[dict] = None) -> str:
     lang = configured_languages(cfg, pcfg)[path.suffix.lower()]
     lp = lang.get('line_prefix', '')
     bo = lang.get('block_open', '')
@@ -448,16 +447,16 @@ def apply_header_to_text(content: str, suffix: str, header: str, cfg: dict) -> s
     return pre+body
 
 
-def stage_change(path: Path, cfg: dict, pcfg: dict, plugins: List[dataschemes.plugin_module.PluginModule], overrides: Optional[dict]) -> dataschemes.staged_change.StagedChange:
+def stage_change(path: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.PluginModule], overrides: Optional[dict]) -> staged_change.StagedChange:
     original = read_text_lossy(path)
     existed = extract_managed_header(original) is not None
     updated = apply_header_to_text(original, path.suffix.lower(
     ), build_header(path, cfg, pcfg, plugins, overrides), cfg)
     op = 'Update Header' if existed and original != updated else 'Insert Header' if not existed and original != updated else 'No Change'
-    return dataschemes.staged_change.StagedChange(path, original, updated, op)
+    return staged_change.StagedChange(path, original, updated, op)
 
 
-def unified_diff(change: dataschemes.staged_change.StagedChange) -> str: return ''.join(difflib.unified_diff(change.original.splitlines(True),
+def unified_diff(change: staged_change.StagedChange) -> str: return ''.join(difflib.unified_diff(change.original.splitlines(True),
                                                                                    change.updated.splitlines(True), fromfile=f'before/{change.path.name}', tofile=f'after/{change.path.name}'))
 
 
