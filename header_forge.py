@@ -60,12 +60,6 @@ def config_path() -> Path:
     return Path(env).expanduser() if env else config_handler.get_user_config_path()
 
 
-def load_config() -> dict:
-    cfg = json_helper.load_json_if_exists(config_handler.get_user_config_path(), config_handler.ConfigHandler.Default_Config)
-    config_handler.migrate_config(cfg)
-    return cfg
-
-
 def load_project_config(root: Path) -> dict: return json_helper.load_json_if_exists(
     config_handler.get_project_config_path(root), config_handler.ConfigHandler.Default_Project_Config)
 
@@ -418,7 +412,7 @@ class HeaderForgeApp:
         self.root = root
         root.title(f'{config_handler.ConfigHandler.App_Name} {config_handler.ConfigHandler.App_Version}')
         root.geometry('1720x1000')
-        self.cfg = load_config()
+        self.cfg = config_handler.load_config()
         self.project_root = Path.cwd()
         self.project_cfg = load_project_config(self.project_root)
         self.state = AppState()
@@ -883,7 +877,7 @@ class HeaderForgeApp:
 
     def load_user_defaults(self):
         try:
-            self.cfg = load_config()
+            self.cfg = config_handler.load_config()
             self._load_fields()
             self.set_config_location_label()
             self.update_dashboard()
@@ -914,7 +908,7 @@ class HeaderForgeApp:
             return
         CONFIG_OVERRIDE_PATH = Path(chosen)
         if CONFIG_OVERRIDE_PATH.exists():
-            self.cfg = load_config()
+            self.cfg = config_handler.load_config()
         else:
             self.cfg = self.current_user_config()
             json_helper.save_json(CONFIG_OVERRIDE_PATH, self.cfg)
@@ -1403,7 +1397,7 @@ def run_gui():
 
 def cli_scan(path: Path) -> int:
     """This is a CLI command to scan for supported files in the given directory."""
-    cfg = load_config()
+    cfg = config_handler.load_config()
     pcfg = load_project_config(path if path.is_dir() else path.parent)
     plugins = load_plugins(cfg, path if path.is_dir() else path.parent, pcfg)
     files = iter_supported_files(path, cfg, pcfg, plugins)
@@ -1415,7 +1409,7 @@ def cli_scan(path: Path) -> int:
 
 def cli_apply(path: Path, dry=False) -> int:
     """This is a CLI command to apply headers to files."""
-    cfg = load_config()
+    cfg = config_handler.load_config()
     pcfg = load_project_config(path if path.is_dir() else path.parent)
     plugins = load_plugins(cfg, path if path.is_dir() else path.parent, pcfg)
     files = iter_supported_files(path, cfg, pcfg, plugins)

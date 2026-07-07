@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from typing import Optional
 from datetime import date
+from helpers import json_helper
 
 class ConfigHandler:
     """This class manages all of the applications configs"""
@@ -96,3 +97,8 @@ def normalize_stage(value: str) -> str:
     m = {'prealpha': 'Pre-Alpha', 'pre-alpha': 'Pre-Alpha', 'alpha': 'Alpha', 'beta': 'Beta', 'rc': 'Release Candidate',
          'release candidate': 'Release Candidate', 'release candidate (rc)': 'Release Candidate', 'stable': 'Release', 'production': 'Release', 'prod': 'Release'}
     return m.get(raw.lower(), raw or 'Alpha')
+
+def load_config() -> dict:
+    cfg = json_helper.load_json_if_exists(get_user_config_path(), ConfigHandler.Default_Config)
+    migrate_config(cfg)
+    return cfg
