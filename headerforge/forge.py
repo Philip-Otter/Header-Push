@@ -87,3 +87,16 @@ def parse_managed_header_values(header_text: str) -> dict:
                 values[target] = config_handler.normalize_stage(
                     ' '.join(c)) if target == 'build_stage' else ' '.join(c)
     return values
+
+def format_copyright(values: dict) -> str:
+    owner = (values.get('copyright_owner') or '').strip()
+    if not owner:
+        return ''
+    end = (values.get('copyright_end_year') or '').strip() or str(
+        misc_helper.parse_created_date(values.get('created_date', '')).year)
+    start = (values.get('copyright_start_year') or '').strip()
+    years = f'{start}-{end}' if start and start != end else end
+    return f'Copyright : © {years} {owner}'
+
+def strip_template(
+    line: str) -> str: return line[2:] if line.startswith('; ') else '' if line == ';' else line

@@ -174,21 +174,6 @@ def safe_format(line: str, values: dict) -> str:
         return line.replace('{'+str(e.args[0])+'}', f'<missing:{e.args[0]}>')
 
 
-def strip_template(
-    line: str) -> str: return line[2:] if line.startswith('; ') else '' if line == ';' else line
-
-
-def format_copyright(values: dict) -> str:
-    owner = (values.get('copyright_owner') or '').strip()
-    if not owner:
-        return ''
-    end = (values.get('copyright_end_year') or '').strip() or str(
-        misc_helper.parse_created_date(values.get('created_date', '')).year)
-    start = (values.get('copyright_start_year') or '').strip()
-    years = f'{start}-{end}' if start and start != end else end
-    return f'Copyright : © {years} {owner}'
-
-
 def file_values(path: Optional[Path], cfg: dict, pcfg: dict, plugins: List[plugin_module.PluginModule], overrides: Optional[dict] = None) -> dict:
     v = dict(cfg.get('defaults', {}))
     v.update(pcfg.get('header_defaults', {})
@@ -199,7 +184,7 @@ def file_values(path: Optional[Path], cfg: dict, pcfg: dict, plugins: List[plugi
              'filename': 'ExampleFile.cs', 'filename_stem': 'ExampleFile', 'extension': '.cs', 'relative_path': 'ExampleFile.cs'})
     v['build_stage'] = config_handler.normalize_stage(v.get('build_stage'))
     v['created'] = misc_helper.created_label(v.get('created_date', ''))
-    v['copyright_section'] = format_copyright(v)
+    v['copyright_section'] = forge.format_copyright(v)
     v['license_section'] = f"License   : {v.get('license', '').strip()}" if v.get(
         'license', '').strip() else ''
     for res in plugin_call(plugins, 'alter_header_values', v, path, {'global': cfg, 'project': pcfg}):
@@ -247,7 +232,7 @@ def build_header(path: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.
         lines.append(bo)
     lines.append(f'{lp}{config_handler.ConfigHandler.Header_Begin}')
     for line in template_core(path, cfg, pcfg, plugins, vals):
-        c = strip_template(line)
+        c = forge.strip_template(line)
         lines.append(f'{lp}{c}' if c else lp.rstrip())
     lines.append(f'{lp}{config_handler.ConfigHandler.Header_End}')
     if style == 'block' and bc:
