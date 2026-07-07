@@ -15,6 +15,7 @@ import shutil
 import sys
 import tempfile
 import traceback
+import dataschemes
 from configs import config_handler
 from help import help_handler
 from dataclasses import dataclass, field
@@ -35,13 +36,6 @@ FIELD_LABELS = {'organization': ['Organization'], 'artifact_type': ['Type', 'Art
     'Created'], 'purpose': ['Purpose'], 'impact': ['Impact'], 'risk': ['Risk Level', 'Risk'], 'build_stage': ['Build Stage', 'Release Stage', 'Stage', 'Pre-Release Stage'], 'patch_line': ['Patch'], 'copyright': ['Copyright'], 'license': ['License', 'Licensing']}
 PATCH_LINE_RE = re.compile(
     r'^(?P<patch_type>.+?)\s+Patch\s*:\s*(?P<version>.+)$', re.I)
-
-@dataclass
-class PluginModule:
-    name: str
-    path: Path
-    module: Any
-    error: str = ''
 
 
 @dataclass
@@ -67,7 +61,7 @@ class StagedChange:
 class AppState:
     files: List[FileRecord] = field(default_factory=list)
     staged: Dict[Path, StagedChange] = field(default_factory=dict)
-    plugins: List[PluginModule] = field(default_factory=list)
+    plugins: List[dataschemes.plugin_module.PluginModule] = field(default_factory=list)
     last_push_backups: Dict[Path, Path] = field(default_factory=dict)
 
 
@@ -280,7 +274,7 @@ def parse_managed_header_values(header_text: str) -> dict:
     return values
 
 
-def load_plugins(global_cfg: dict, project_root: Optional[Path], project_cfg: dict) -> List[PluginModule]:
+def load_plugins(global_cfg: dict, project_root: Optional[Path], project_cfg: dict) -> List[dataschemes.plugin_module.PluginModule]:
     paths = []
     if global_cfg.get('options', {}).get('global_plugins_enabled', True):
         gd = user_config_dir()/config_handler.ConfigHandler.Plugin_Directory
@@ -299,14 +293,14 @@ def load_plugins(global_cfg: dict, project_root: Optional[Path], project_cfg: di
             mod = importlib.util.module_from_spec(spec)
             sys.modules[name] = mod
             spec.loader.exec_module(mod)
-            out.append(PluginModule(path.stem, path, mod))
+            out.append(dataschemes.plugin_module.PluginModule(path.stem, path, mod))
         except Exception:
-            out.append(PluginModule(path.stem, path,
+            out.append(dataschemes.plugin_module.PluginModule(path.stem, path,
                        None, traceback.format_exc()))
     return out
 
 
-def plugin_call(plugins: Iterable[PluginModule], func_name: str, *args: Any) -> List[Any]:
+def plugin_call(plugins: Iterable[dataschemes.plugin_module.PluginModule], func_name: str, *args: Any) -> List[Any]:
     out = []
     for p in plugins:
         if p.error or p.module is None:
@@ -331,7 +325,7 @@ def configured_languages(cfg: dict, pcfg: dict) -> Dict[str, dict]:
     return langs
 
 
-def should_ignore_path(path: Path, root: Path, cfg: dict, pcfg: dict, plugins: List[PluginModule]) -> bool:
+def should_ignore_path(path: Path, root: Path, cfg: dict, pcfg: dict, plugins: List[dataschemes.plugin_module.PluginModule]) -> bool:
     base = root if root.is_dir() else root.parent
     try:
         rel = path.relative_to(base)
@@ -349,7 +343,7 @@ def should_ignore_path(path: Path, root: Path, cfg: dict, pcfg: dict, plugins: L
     return any(x is True for x in plugin_call(plugins, 'should_ignore', path, root, {'global': cfg, 'project': pcfg}))
 
 
-def iter_supported_files(root: Path, cfg: dict, pcfg: dict, plugins: List[PluginModule]) -> List[Path]:
+def iter_supported_files(root: Path, cfg: dict, pcfg: dict, plugins: List[dataschemes.plugin_module.PluginModule]) -> List[Path]:
     langs = configured_languages(cfg, pcfg)
     if root.is_file():
         return [] if should_ignore_path(root, root.parent, cfg, pcfg, plugins) or root.suffix.lower() not in langs else [root]
@@ -391,7 +385,7 @@ def format_copyright(values: dict) -> str:
     return f'Copyright : © {years} {owner}'
 
 
-def file_values(path: Optional[Path], cfg: dict, pcfg: dict, plugins: List[PluginModule], overrides: Optional[dict] = None) -> dict:
+def file_values(path: Optional[Path], cfg: dict, pcfg: dict, plugins: List[dataschemes.plugin_module.PluginModule], overrides: Optional[dict] = None) -> dict:
     v = dict(cfg.get('defaults', {}))
     v.update(pcfg.get('header_defaults', {})
              if pcfg.get('enabled', True) else {})
@@ -417,7 +411,7 @@ def file_values(path: Optional[Path], cfg: dict, pcfg: dict, plugins: List[Plugi
     return v
 
 
-def template_core(path: Path, cfg: dict, pcfg: dict, plugins: List[PluginModule], values: dict) -> List[str]:
+def template_core(path: Path, cfg: dict, pcfg: dict, plugins: List[dataschemes.plugin_module.PluginModule], values: dict) -> List[str]:
     custom = plugin_call(plugins, 'render_template', values, path, {
                          'global': cfg, 'project': pcfg})
     if custom:
@@ -437,7 +431,7 @@ def template_core(path: Path, cfg: dict, pcfg: dict, plugins: List[PluginModule]
     return out
 
 
-def build_header(path: Path, cfg: dict, pcfg: dict, plugins: List[PluginModule], overrides: Optional[dict] = None) -> str:
+def build_header(path: Path, cfg: dict, pcfg: dict, plugins: List[dataschemes.plugin_module.PluginModule], overrides: Optional[dict] = None) -> str:
     lang = configured_languages(cfg, pcfg)[path.suffix.lower()]
     lp = lang.get('line_prefix', '')
     bo = lang.get('block_open', '')
@@ -465,7 +459,7 @@ def apply_header_to_text(content: str, suffix: str, header: str, cfg: dict) -> s
     return pre+body
 
 
-def stage_change(path: Path, cfg: dict, pcfg: dict, plugins: List[PluginModule], overrides: Optional[dict]) -> StagedChange:
+def stage_change(path: Path, cfg: dict, pcfg: dict, plugins: List[dataschemes.plugin_module.PluginModule], overrides: Optional[dict]) -> StagedChange:
     original = read_text_lossy(path)
     existed = extract_managed_header(original) is not None
     updated = apply_header_to_text(original, path.suffix.lower(
