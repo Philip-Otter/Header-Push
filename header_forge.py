@@ -18,7 +18,7 @@ import traceback
 from dataschemes import plugin_module, staged_change, file_record
 from configs import config_handler
 from help import help_handler
-from helpers import json_helper
+from helpers import json_helper, misc_helper
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
@@ -63,20 +63,6 @@ def config_path() -> Path:
 def load_project_config(root: Path) -> dict: return json_helper.load_json_if_exists(
     config_handler.get_project_config_path(root), config_handler.ConfigHandler.Default_Project_Config)
 
-
-def parse_created_date(value: str) -> date:
-    if not value:
-        return date.today()
-    for fmt in ('%Y-%m-%d', '%B %d, %Y', '%B, %Y', '%b %d, %Y', '%b, %Y'):
-        try:
-            x = datetime.strptime(str(value).strip(), fmt)
-            return x.date().replace(day=x.day if '%d' in fmt else 1)
-        except ValueError:
-            pass
-    return date.today()
-
-def created_label(
-    value: str) -> str: return parse_created_date(value).strftime('%B, %Y')
 
 
 def read_text_lossy(path: Path) -> str:
@@ -158,7 +144,7 @@ def parse_managed_header_values(header_text: str) -> dict:
         for key, labels in FIELD_LABELS.items():
             if lower in [x.lower() for x in labels]:
                 if key == 'created':
-                    values['created_date'] = parse_created_date(
+                    values['created_date'] = misc_helper.parse_created_date(
                         raw).isoformat()
                 elif key == 'build_stage':
                     values['build_stage'] = config_handler.normalize_stage(raw)
@@ -290,7 +276,7 @@ def format_copyright(values: dict) -> str:
     if not owner:
         return ''
     end = (values.get('copyright_end_year') or '').strip() or str(
-        parse_created_date(values.get('created_date', '')).year)
+        misc_helper.parse_created_date(values.get('created_date', '')).year)
     start = (values.get('copyright_start_year') or '').strip()
     years = f'{start}-{end}' if start and start != end else end
     return f'Copyright : © {years} {owner}'
@@ -305,7 +291,7 @@ def file_values(path: Optional[Path], cfg: dict, pcfg: dict, plugins: List[plugi
     v.update({'filename': path.name, 'filename_stem': path.stem, 'extension': path.suffix.lower(), 'relative_path': str(path)} if path else {
              'filename': 'ExampleFile.cs', 'filename_stem': 'ExampleFile', 'extension': '.cs', 'relative_path': 'ExampleFile.cs'})
     v['build_stage'] = config_handler.normalize_stage(v.get('build_stage'))
-    v['created'] = created_label(v.get('created_date', ''))
+    v['created'] = misc_helper.created_label(v.get('created_date', ''))
     v['copyright_section'] = format_copyright(v)
     v['license_section'] = f"License   : {v.get('license', '').strip()}" if v.get(
         'license', '').strip() else ''
@@ -820,7 +806,7 @@ class HeaderForgeApp:
             return
         self.refresh_previews()
 
-    def _set_created(self, value): dt = parse_created_date(value); self.year_var.set(str(dt.year)); self.month_var.set(
+    def _set_created(self, value): dt = misc_helper.parse_created_date(value); self.year_var.set(str(dt.year)); self.month_var.set(
         calendar.month_name[dt.month]); self.day_var.set(str(dt.day)); self.field_vars['created_date'].set(dt.isoformat())
 
     def _load_fields(self):
