@@ -1546,6 +1546,7 @@ class HeaderForgeApp:
     ); self.update_dashboard(); self.log(f'Cleared {n} staged change(s).', 'SUCCESS')
 
     def show_staged_diff(self):
+        """This shows a diff of all staged changes without actually pushing those changes."""
         if not self.state.staged:
             messagebox.showinfo(APP_NAME, 'No staged changes yet.')
             self.log('Review staged requested but nothing is staged.')
@@ -1554,6 +1555,7 @@ class HeaderForgeApp:
             unified_diff(c) for c in self.state.staged.values()))
 
     def push_staged(self):
+        """This pushes the staged header changes out to the target files"""
         if not self.state.staged:
             messagebox.showinfo(APP_NAME, 'No staged changes to push.')
             self.log('Push skipped: no staged changes.')
@@ -1585,6 +1587,7 @@ class HeaderForgeApp:
                 f'Push completed successfully. Files written atomically: {pushed}.', 'SUCCESS')
 
     def undo_last_push(self):
+        """This undoes the last push made to the staged files."""
         if not self.state.last_push_backups:
             messagebox.showinfo(
                 APP_NAME, 'No backup map from the last push is available.')
@@ -1615,6 +1618,7 @@ class HeaderForgeApp:
 
 
 def run_gui():
+    """Run the GUI application."""
     if tk is None:
         raise RuntimeError(f'tkinter is not available: {TK_IMPORT_ERROR}')
     root = tk.Tk()
@@ -1623,6 +1627,7 @@ def run_gui():
 
 
 def cli_scan(path: Path) -> int:
+    """This is a CLI command to scan for supported files in the given directory."""
     cfg = load_config()
     pcfg = load_project_config(path if path.is_dir() else path.parent)
     plugins = load_plugins(cfg, path if path.is_dir() else path.parent, pcfg)
@@ -1634,6 +1639,7 @@ def cli_scan(path: Path) -> int:
 
 
 def cli_apply(path: Path, dry=False) -> int:
+    """This is a CLI command to apply headers to files."""
     cfg = load_config()
     pcfg = load_project_config(path if path.is_dir() else path.parent)
     plugins = load_plugins(cfg, path if path.is_dir() else path.parent, pcfg)
@@ -1656,6 +1662,7 @@ def cli_apply(path: Path, dry=False) -> int:
 
 
 def main() -> int:
+    """This runs the main app"""
     ap = argparse.ArgumentParser(
         description='HeaderForge - unified managed developer header tool')
     ap.add_argument(
