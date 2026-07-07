@@ -38,7 +38,7 @@ CONFIG_OVERRIDE_PATH: Optional[Path] = None
 HEADER_BEGIN = 'HEADERFORGE-BEGIN'
 HEADER_END = 'HEADERFORGE-END'
 
-DEFAULT_ARTIFACT_TYPES = ['script', 'application',
+DEFAULT_PROJECT_TYPE = ['script', 'application',
                           'library', 'service', 'module', 'tool']
 DEFAULT_RISK_LEVELS = ['Low', 'Medium', 'High', 'Critical']
 DEFAULT_BUILD_STAGES = ['Pre-Alpha', 'Alpha', 'Beta',
@@ -55,7 +55,7 @@ DEFAULT_CONFIG = {
         'impact': 'Describe affected systems, users, workflows, or processes.',
         'risk': 'Low', 'build_stage': 'Alpha', 'patch_type': 'Minor', 'version': 'v1.0.0-alpha',
         'copyright_owner': 'Developer', 'copyright_start_year': '', 'copyright_end_year': str(date.today().year), 'license': ''},
-    'settings': {'artifact_types': DEFAULT_ARTIFACT_TYPES, 'risk_levels': DEFAULT_RISK_LEVELS, 'build_stages': DEFAULT_BUILD_STAGES, 'patch_types': DEFAULT_PATCH_TYPES},
+    'settings': {'artifact_types': DEFAULT_PROJECT_TYPE, 'risk_levels': DEFAULT_RISK_LEVELS, 'build_stages': DEFAULT_BUILD_STAGES, 'patch_types': DEFAULT_PATCH_TYPES},
     'template_lines': ['; =============================================================================', '; {organization}', ';', '; Type        : {artifact_type}', '; Name        : {name}', '; Codename    : {codename}', '; Owner       : {owner}', '; Title       : {title}', '; Created     : {created}', ';', '; Purpose :', ';   {purpose}', ';', '; Impact :', ';   {impact}', ';', '; Risk Level :', ';   {risk}', ';', '; Build Stage :', ';   {build_stage}', ';', '; {patch_type} Patch: {version}', ';', '; {copyright_section}', '; {license_section}', '; ============================================================================='],
     'languages': {
         '.au3': {'name': 'AutoIt', 'style': 'line', 'line_prefix': '; ', 'block_open': '', 'block_close': ''},
@@ -271,7 +271,7 @@ def migrate_config(cfg: dict) -> None:
     d.setdefault('copyright_end_year', str(date.today().year))
     d.setdefault('license', '')
     s = cfg.setdefault('settings', {})
-    s.setdefault('artifact_types', DEFAULT_ARTIFACT_TYPES)
+    s.setdefault('artifact_types', DEFAULT_PROJECT_TYPE)
     s.setdefault('risk_levels', DEFAULT_RISK_LEVELS)
     s.setdefault('build_stages', DEFAULT_BUILD_STAGES)
     s.setdefault('patch_types', DEFAULT_PATCH_TYPES)
@@ -914,7 +914,7 @@ class HeaderForgeApp:
         self.builder_frame.columnconfigure(1, weight=1)
 
     def _add_standard_fields(self):
-        for args in [('organization', 'Organization'), ('artifact_type', 'Artifact Type', 'combo', self.settings_list('artifact_types', DEFAULT_ARTIFACT_TYPES)), ('name', 'Name'), ('codename', 'Codename'), ('owner', 'Owner'), ('title', 'Title'), ('created_date', 'Created Date', 'date'), ('purpose', 'Purpose', 'text'), ('impact', 'Impact', 'text'), ('risk', 'Risk', 'combo', self.settings_list('risk_levels', DEFAULT_RISK_LEVELS)), ('build_stage', 'Build Stage', 'combo', self.settings_list('build_stages', DEFAULT_BUILD_STAGES)), ('patch_type', 'Patch Type', 'combo', self.settings_list('patch_types', DEFAULT_PATCH_TYPES)), ('version', 'Version'), ('copyright_owner', 'Copyright Owner'), ('copyright_start_year', 'Copyright Start Year'), ('copyright_end_year', 'Copyright End Year'), ('license', 'License')]:
+        for args in [('organization', 'Organization'), ('artifact_type', 'Artifact Type', 'combo', self.settings_list('artifact_types', DEFAULT_PROJECT_TYPE)), ('name', 'Name'), ('codename', 'Codename'), ('owner', 'Owner'), ('title', 'Title'), ('created_date', 'Created Date', 'date'), ('purpose', 'Purpose', 'text'), ('impact', 'Impact', 'text'), ('risk', 'Risk', 'combo', self.settings_list('risk_levels', DEFAULT_RISK_LEVELS)), ('build_stage', 'Build Stage', 'combo', self.settings_list('build_stages', DEFAULT_BUILD_STAGES)), ('patch_type', 'Patch Type', 'combo', self.settings_list('patch_types', DEFAULT_PATCH_TYPES)), ('version', 'Version'), ('copyright_owner', 'Copyright Owner'), ('copyright_start_year', 'Copyright Start Year'), ('copyright_end_year', 'Copyright End Year'), ('license', 'License')]:
             self._add_field(*args)
 
     def _add_plugin_fields(self):
@@ -984,7 +984,7 @@ class HeaderForgeApp:
                   style='Muted.TLabel').pack(anchor='w')
         grid = ttk.Frame(self.settings_tab)
         grid.pack(fill='both', expand=True)
-        for idx, (key, title, fallback) in enumerate([('artifact_types', 'Artifact Types', DEFAULT_ARTIFACT_TYPES), ('risk_levels', 'Risk Levels', DEFAULT_RISK_LEVELS), ('build_stages', 'Build Stages', DEFAULT_BUILD_STAGES), ('patch_types', 'Patch Types', DEFAULT_PATCH_TYPES)]):
+        for idx, (key, title, fallback) in enumerate([('artifact_types', 'Artifact Types', DEFAULT_PROJECT_TYPE), ('risk_levels', 'Risk Levels', DEFAULT_RISK_LEVELS), ('build_stages', 'Build Stages', DEFAULT_BUILD_STAGES), ('patch_types', 'Patch Types', DEFAULT_PATCH_TYPES)]):
             lf = ttk.LabelFrame(grid, text=title, padding=6)
             lf.grid(row=idx//2, column=idx % 2, sticky='nsew', padx=5, pady=5)
             tx = tk.Text(lf, height=12, width=42)
