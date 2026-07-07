@@ -16,6 +16,7 @@ import sys
 import tempfile
 import traceback
 from configs import config_handler
+from help import help_handler
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
@@ -34,97 +35,6 @@ FIELD_LABELS = {'organization': ['Organization'], 'artifact_type': ['Type', 'Art
     'Created'], 'purpose': ['Purpose'], 'impact': ['Impact'], 'risk': ['Risk Level', 'Risk'], 'build_stage': ['Build Stage', 'Release Stage', 'Stage', 'Pre-Release Stage'], 'patch_line': ['Patch'], 'copyright': ['Copyright'], 'license': ['License', 'Licensing']}
 PATCH_LINE_RE = re.compile(
     r'^(?P<patch_type>.+?)\s+Patch\s*:\s*(?P<version>.+)$', re.I)
-
-HELP_DOCS = '''HEADERFORGE HELP / ABOUT
-=============================
-HeaderForge creates, previews, stages, and atomically applies managed developer headers.
-Managed headers are wrapped with HEADERFORGE-BEGIN and HEADERFORGE-END.
-
-WORKFLOW
---------
-1. Open Project
-2. Scan
-3. Select files in the Treeview
-4. Edit Header Builder fields
-5. Review Header / Diff / Full File
-6. Stage
-7. Push
-
-PROJECT CONFIG
---------------
-Each project can contain headerforge.project.json. Create or edit it from the Project Config tab.
-
-Example:
-{
-  "enabled": true,
-  "include_extensions": [".cs", ".au3", ".ps1"],
-  "exclude_extensions": [],
-  "ignore_directories": ["bin", "obj", ".git", "node_modules"],
-  "ignore_files": ["AssemblyInfo.cs"],
-  "ignore_globs": ["*.generated.cs", "*.designer.cs", "*.bak"],
-  "plugins_enabled": true,
-  "project_plugins_directory": "headerforge_plugins",
-  "header_defaults": {"owner": "Philip Otter", "build_stage": "Beta"},
-  "template_lines": []
-}
-
-CONFIG KEYS
------------
-include_extensions: if empty, all known extensions are eligible. If populated, only those extensions are scanned.
-exclude_extensions: extensions to block.
-ignore_directories: directory names skipped anywhere in the tree.
-ignore_files: exact file names skipped.
-ignore_globs: glob patterns skipped.
-plugins_enabled: enables project plugins.
-project_plugins_directory: project plugin folder.
-header_defaults: project-specific header values.
-template_lines: project-specific template. Empty means use global template.
-
-PLUGIN SYSTEM
--------------
-Plugins are plain Python files. Global plugins live beside this script in headerforge_plugins/*.py.
-Project plugins live in <project>/headerforge_plugins/*.py.
-
-Supported plugin functions:
-
-register(app)
-    Add UI, toolbar buttons, tabs, or text.
-
-get_header_fields()
-    Return extra fields as dictionaries:
-    {"key":"change_ticket", "label":"Change Ticket", "kind":"entry", "default":""}
-    {"key":"environment", "label":"Environment", "kind":"combo", "values":["Dev","Test","Prod"], "default":"Dev"}
-
-get_template_lines(config)
-    Return extra template lines, for example:
-    ["; Change Ticket : {change_ticket}"]
-
-should_ignore(path, project_root, config)
-    Return True to ignore a file or folder.
-
-alter_header_values(values, path, config)
-    Change values before rendering. Return the modified dict.
-
-render_template(values, path, config)
-    Fully override the template core. Return a list of lines or a string.
-
-PLUGIN APP API
---------------
-app.add_toolbar_button(text, command)
-app.add_tab(title)
-app.add_text(parent, text)
-app.info(title, message)
-app.reload_plugins()
-app.refresh_all()
-app.cfg
-app.project_cfg
-app.project_root
-
-SECURITY NOTE
--------------
-Plugins are executable Python code. Only load trusted plugins. HeaderForge does not sandbox plugins.
-'''
-
 
 @dataclass
 class PluginModule:
@@ -990,7 +900,7 @@ class HeaderForgeApp:
         self.plugins_tree.pack(fill='both', expand=True)
 
     def _help(self): self.help_text = tk.Text(self.help_tab, wrap='word'); self.help_text.pack(
-        fill='both', expand=True); self.help_text.insert('1.0', HELP_DOCS); self.help_text.configure(state='disabled')
+        fill='both', expand=True); self.help_text.insert('1.0', help_handler.HelpHandler.Help_Docs); self.help_text.configure(state='disabled')
 
     def _sync_text(self, key, w): self.field_vars[key].set(
         w.get('1.0', 'end-1c')); self.refresh_previews()
