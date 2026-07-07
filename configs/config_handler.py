@@ -73,3 +73,26 @@ def get_user_config_path() -> Path: return get_user_config_dir()/ConfigHandler.C
 
 def get_project_config_path(
     root: Path) -> Path: return (root if root.is_dir() else root.parent)/ConfigHandler.Project_Config_File
+
+def migrate_config(cfg: dict) -> None:
+    d = cfg.setdefault('defaults', {})
+    if 'script' in d and 'name' not in d:
+        d['name'] = d.pop('script')
+    if 'stage' in d and 'build_stage' not in d:
+        d['build_stage'] = normalize_stage(d.pop('stage'))
+    d.setdefault('created_date', date.today().isoformat())
+    d.setdefault('copyright_owner', d.get('organization', ''))
+    d.setdefault('copyright_start_year', '')
+    d.setdefault('copyright_end_year', str(date.today().year))
+    d.setdefault('license', '')
+    s = cfg.setdefault('settings', {})
+    s.setdefault('artifact_types', ConfigHandler.Default_Project_Types)
+    s.setdefault('risk_levels', ConfigHandler.Default_Risk_Levels)
+    s.setdefault('build_stages', ConfigHandler.Default_Build_Stages)
+    s.setdefault('patch_types', ConfigHandler.Default_Patch_Types)
+
+def normalize_stage(value: str) -> str:
+    raw = (value or '').strip()
+    m = {'prealpha': 'Pre-Alpha', 'pre-alpha': 'Pre-Alpha', 'alpha': 'Alpha', 'beta': 'Beta', 'rc': 'Release Candidate',
+         'release candidate': 'Release Candidate', 'release candidate (rc)': 'Release Candidate', 'stable': 'Release', 'production': 'Release', 'prod': 'Release'}
+    return m.get(raw.lower(), raw or 'Alpha')

@@ -59,27 +59,10 @@ def config_path() -> Path:
     env = os.getenv('HEADERFORGE_CONFIG')
     return Path(env).expanduser() if env else config_handler.get_user_config_path()
 
-def migrate_config(cfg: dict) -> None:
-    d = cfg.setdefault('defaults', {})
-    if 'script' in d and 'name' not in d:
-        d['name'] = d.pop('script')
-    if 'stage' in d and 'build_stage' not in d:
-        d['build_stage'] = normalize_stage(d.pop('stage'))
-    d.setdefault('created_date', date.today().isoformat())
-    d.setdefault('copyright_owner', d.get('organization', ''))
-    d.setdefault('copyright_start_year', '')
-    d.setdefault('copyright_end_year', str(date.today().year))
-    d.setdefault('license', '')
-    s = cfg.setdefault('settings', {})
-    s.setdefault('artifact_types', config_handler.ConfigHandler.Default_Project_Types)
-    s.setdefault('risk_levels', config_handler.ConfigHandler.Default_Risk_Levels)
-    s.setdefault('build_stages', config_handler.ConfigHandler.Default_Build_Stages)
-    s.setdefault('patch_types', config_handler.ConfigHandler.Default_Patch_Types)
-
 
 def load_config() -> dict:
     cfg = json_helper.load_json_if_exists(config_handler.get_user_config_path(), config_handler.ConfigHandler.Default_Config)
-    migrate_config(cfg)
+    config_handler.migrate_config(cfg)
     return cfg
 
 
@@ -98,16 +81,8 @@ def parse_created_date(value: str) -> date:
             pass
     return date.today()
 
-
 def created_label(
     value: str) -> str: return parse_created_date(value).strftime('%B, %Y')
-
-
-def normalize_stage(value: str) -> str:
-    raw = (value or '').strip()
-    m = {'prealpha': 'Pre-Alpha', 'pre-alpha': 'Pre-Alpha', 'alpha': 'Alpha', 'beta': 'Beta', 'rc': 'Release Candidate',
-         'release candidate': 'Release Candidate', 'release candidate (rc)': 'Release Candidate', 'stable': 'Release', 'production': 'Release', 'prod': 'Release'}
-    return m.get(raw.lower(), raw or 'Alpha')
 
 
 def read_text_lossy(path: Path) -> str:
@@ -192,7 +167,7 @@ def parse_managed_header_values(header_text: str) -> dict:
                     values['created_date'] = parse_created_date(
                         raw).isoformat()
                 elif key == 'build_stage':
-                    values['build_stage'] = normalize_stage(raw)
+                    values['build_stage'] = config_handler.normalize_stage(raw)
                 elif key == 'copyright':
                     values['copyright_owner'] = re.sub(
                         r'^©\s*[0-9\-]*\s*', '', raw).strip()
@@ -211,7 +186,7 @@ def parse_managed_header_values(header_text: str) -> dict:
             if c:
                 target = 'risk' if lower in (
                     'risk level', 'risk') else 'build_stage' if lower == 'build stage' else lower
-                values[target] = normalize_stage(
+                values[target] = config_handler.normalize_stage(
                     ' '.join(c)) if target == 'build_stage' else ' '.join(c)
     return values
 
@@ -335,7 +310,7 @@ def file_values(path: Optional[Path], cfg: dict, pcfg: dict, plugins: List[plugi
         v.update({k: x for k, x in overrides.items() if x is not None})
     v.update({'filename': path.name, 'filename_stem': path.stem, 'extension': path.suffix.lower(), 'relative_path': str(path)} if path else {
              'filename': 'ExampleFile.cs', 'filename_stem': 'ExampleFile', 'extension': '.cs', 'relative_path': 'ExampleFile.cs'})
-    v['build_stage'] = normalize_stage(v.get('build_stage'))
+    v['build_stage'] = config_handler.normalize_stage(v.get('build_stage'))
     v['created'] = created_label(v.get('created_date', ''))
     v['copyright_section'] = format_copyright(v)
     v['license_section'] = f"License   : {v.get('license', '').strip()}" if v.get(
@@ -870,7 +845,7 @@ class HeaderForgeApp:
                 v.set(val)
 
     def get_overrides(self): d = {k: v.get() for k, v in self.field_vars.items(
-    )}; d['build_stage'] = normalize_stage(d.get('build_stage')); return d
+    )}; d['build_stage'] = config_handler.normalize_stage(d.get('build_stage')); return d
 
     def current_user_config(self) -> dict:
         # Persist the user's current builder profile plus editable dropdown
@@ -884,7 +859,7 @@ class HeaderForgeApp:
                     '1.0', 'end-1c').splitlines() if x.strip()]
                 if vals:
                     cfg['settings'][k] = vals
-        migrate_config(cfg)
+        config_handler.migrate_config(cfg)
         return cfg
 
     def set_config_location_label(self):
@@ -922,7 +897,7 @@ class HeaderForgeApp:
     def reset_builtin_defaults(self):
         # Session-only reset. This intentionally does not delete the AppData file.
         self.cfg = json_helper.clone_json(config_handler.ConfigHandler.Default_Config)
-        migrate_config(self.cfg)
+        config_handler.migrate_config(self.cfg)
         self._load_fields()
         self.set_config_location_label()
         self.update_dashboard()
@@ -982,7 +957,7 @@ class HeaderForgeApp:
                 self.cfg['template_lines'] = data['template_lines']
             if data.get('template_name'):
                 self.cfg['template_name'] = str(data['template_name'])
-            migrate_config(self.cfg)
+            config_handler.migrate_config(self.cfg)
             self._load_fields()
             self.refresh_previews()
             self.update_dashboard()
