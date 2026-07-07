@@ -52,19 +52,6 @@ def app_dir() -> Path:
     except NameError:
         return Path.cwd()
 
-
-def deep_merge(base: dict, overlay: dict) -> dict:
-    out = json_helper.clone_json(base)
-    for k, v in (overlay or {}).items():
-        out[k] = deep_merge(out[k], v) if isinstance(
-            v, dict) and isinstance(out.get(k), dict) else v
-    return out
-
-
-def load_json_if_exists(path: Path, default: dict) -> dict: return deep_merge(default,
-                                                                              json.loads(path.read_text(encoding='utf-8'))) if path.exists() else json_helper.clone_json(default)
-
-
 def user_config_dir() -> Path:
     # Windows desktop-app behavior: use roaming AppData. Non-Windows fallback
     # keeps the tool portable for Linux/macOS/dev containers.
@@ -106,12 +93,12 @@ def migrate_config(cfg: dict) -> None:
 
 
 def load_config() -> dict:
-    cfg = load_json_if_exists(config_path(), config_handler.ConfigHandler.Default_Config)
+    cfg = json_helper.load_json_if_exists(config_path(), config_handler.ConfigHandler.Default_Config)
     migrate_config(cfg)
     return cfg
 
 
-def load_project_config(root: Path) -> dict: return load_json_if_exists(
+def load_project_config(root: Path) -> dict: return json_helper.load_json_if_exists(
     project_config_path(root), config_handler.ConfigHandler.Default_Project_Config)
 
 
@@ -903,7 +890,7 @@ class HeaderForgeApp:
     def current_user_config(self) -> dict:
         # Persist the user's current builder profile plus editable dropdown
         # settings. Project-specific file selections/staged changes are not user defaults.
-        cfg = deep_merge(config_handler.ConfigHandler.Default_Config, self.cfg)
+        cfg = json_helper.deep_merge(config_handler.ConfigHandler.Default_Config, self.cfg)
         cfg['defaults'].update(self.get_overrides())
         if hasattr(self, 'setting_widgets'):
             cfg.setdefault('settings', {})
@@ -1071,7 +1058,7 @@ class HeaderForgeApp:
 
     def save_project_config(self):
         try:
-            self.project_cfg = deep_merge(config_handler.ConfigHandler.Default_Project_Config, json.loads(
+            self.project_cfg = json_helper.deep_merge(config_handler.ConfigHandler.Default_Project_Config, json.loads(
                 self.config_text.get('1.0', 'end-1c').strip() or json.dumps(self.project_cfg)))
             json_helper.save_json(project_config_path(self.project_root), self.project_cfg)
             selected = self.capture_selected_paths()
