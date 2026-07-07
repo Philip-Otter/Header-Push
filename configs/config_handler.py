@@ -1,0 +1,62 @@
+from pathlib import Path
+from typing import Optional
+from datetime import date
+
+class ConfigHandler:
+    """This class manages all of the applications configs"""
+    # Application Details
+    App_Name: str = 'HeaderPush'
+    App_Version: str = '1.0.0'
+
+    # Config Files
+    Config_File: str = 'headerforge.json'
+    Config_Override_Path: Optional[Path] = None
+    Project_Config_File: str = 'headerforge.project.json'
+
+    # Plugins
+    Plugin_Directory: str = 'headerforge_plugins'
+
+    # Header Indicators
+    Header_Begin: str = 'HEADERFORGE-BEGIN'
+    Header_End: str = 'HEADERFORGE-END'
+    
+    # Defaults
+    Default_Project_Types = ['script', 'application',
+                          'library', 'service', 'module', 'tool']
+    Default_Risk_Levels = ['Low', 'Medium', 'High', 'Critical']
+    Default_Build_Stages = ['Pre-Alpha', 'Alpha', 'Beta',
+                        'Release Candidate', 'Release', 'Maintenance', 'Deprecated']
+    Default_Patch_Types = ['Major', 'Minor', 'Patch',
+                       'Bug-Fix', 'Security', 'Documentation', 'Maintenance']
+    
+
+    Default_Config = {
+    'template_name': 'Standard Developer Header',
+    'defaults': {
+        'organization': 'Organization', 'artifact_type': 'script', 'name': '{filename_stem}', 'codename': '',
+        'owner': 'Developer Name', 'title': 'Developer Position', 'created_date': date.today().isoformat(),
+        'purpose': 'Describe what this script/service/module does.',
+        'impact': 'Describe affected systems, users, workflows, or processes.',
+        'risk': 'Low', 'build_stage': 'Alpha', 'patch_type': 'Minor', 'version': 'v1.0.0-alpha',
+        'copyright_owner': 'Developer', 'copyright_start_year': '', 'copyright_end_year': str(date.today().year), 'license': ''},
+    'settings': {'artifact_types': Default_Project_Types, 'risk_levels': Default_Risk_Levels, 'build_stages': Default_Build_Stages, 'patch_types': Default_Patch_Types},
+    'template_lines': ['; =============================================================================', '; {organization}', ';', '; Type        : {artifact_type}', '; Name        : {name}', '; Codename    : {codename}', '; Owner       : {owner}', '; Title       : {title}', '; Created     : {created}', ';', '; Purpose :', ';   {purpose}', ';', '; Impact :', ';   {impact}', ';', '; Risk Level :', ';   {risk}', ';', '; Build Stage :', ';   {build_stage}', ';', '; {patch_type} Patch: {version}', ';', '; {copyright_section}', '; {license_section}', '; ============================================================================='],
+    'languages': {
+        '.au3': {'name': 'AutoIt', 'style': 'line', 'line_prefix': '; ', 'block_open': '', 'block_close': ''},
+        '.cs': {'name': 'C#', 'style': 'block', 'line_prefix': ' * ', 'block_open': '/*', 'block_close': ' */'},
+        '.py': {'name': 'Python', 'style': 'block', 'line_prefix': '', 'block_open': '\"\"\"', 'block_close': '\"\"\"'},
+        '.ps1': {'name': 'PowerShell', 'style': 'block', 'line_prefix': '', 'block_open': '<#', 'block_close': '#>'},
+        '.js': {'name': 'JavaScript', 'style': 'block', 'line_prefix': ' * ', 'block_open': '/**', 'block_close': ' */'},
+        '.ts': {'name': 'TypeScript', 'style': 'block', 'line_prefix': ' * ', 'block_open': '/**', 'block_close': ' */'},
+        '.java': {'name': 'Java', 'style': 'block', 'line_prefix': ' * ', 'block_open': '/**', 'block_close': ' */'},
+        '.go': {'name': 'Go', 'style': 'block', 'line_prefix': ' * ', 'block_open': '/*', 'block_close': ' */'},
+        '.c': {'name': 'C', 'style': 'block', 'line_prefix': ' * ', 'block_open': '/*', 'block_close': ' */'},
+        '.h': {'name': 'C/C++ Header', 'style': 'block', 'line_prefix': ' * ', 'block_open': '/*', 'block_close': ' */'},
+        '.cpp': {'name': 'C++', 'style': 'block', 'line_prefix': ' * ', 'block_open': '/*', 'block_close': ' */'},
+        '.hpp': {'name': 'C++ Header', 'style': 'block', 'line_prefix': ' * ', 'block_open': '/*', 'block_close': ' */'},
+        '.html': {'name': 'HTML', 'style': 'block', 'line_prefix': '', 'block_open': '<!--', 'block_close': '-->'},
+        '.xml': {'name': 'XML', 'style': 'block', 'line_prefix': '', 'block_open': '<!--', 'block_close': '-->'}},
+    'options': {'backup_before_write': True, 'backup_extension': '.bak', 'global_plugins_enabled': True, 'project_plugins_enabled': True, 'skip_directories': ['.git', '.svn', '.hg', '.vs', '.vscode', 'bin', 'obj', 'node_modules', 'dist', 'build', '__pycache__'], 'ignore_globs': ['*.bak', '*.tmp', '*.generated.*'], 'preserve_shebang': True, 'preserve_xml_declaration': True, 'preserve_encoding_comment': True}}
+
+    Default_Project_Config = {'enabled': True, 'include_extensions': [], 'exclude_extensions': [], 'ignore_directories': ['bin', 'obj', '.git', '.vs', '.vscode'], 'ignore_files': [
+    ], 'ignore_globs': ['*.bak', '*.tmp'], 'plugins_enabled': True, 'project_plugins_directory': Plugin_Directory, 'header_defaults': {}, 'template_lines': []}

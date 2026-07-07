@@ -15,6 +15,7 @@ import shutil
 import sys
 import tempfile
 import traceback
+from configs import config_handler
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
@@ -29,53 +30,6 @@ except Exception as exc:
 else:
     TK_IMPORT_ERROR = None
 
-APP_NAME = 'HeaderPush'
-APP_VERSION = '1.0.0'
-CONFIG_FILE = 'headerforge.json'
-PROJECT_CONFIG_FILE = 'headerforge.project.json'
-PLUGIN_DIR = 'headerforge_plugins'
-CONFIG_OVERRIDE_PATH: Optional[Path] = None
-HEADER_BEGIN = 'HEADERFORGE-BEGIN'
-HEADER_END = 'HEADERFORGE-END'
-
-DEFAULT_PROJECT_TYPE = ['script', 'application',
-                          'library', 'service', 'module', 'tool']
-DEFAULT_RISK_LEVELS = ['Low', 'Medium', 'High', 'Critical']
-DEFAULT_BUILD_STAGES = ['Pre-Alpha', 'Alpha', 'Beta',
-                        'Release Candidate', 'Release', 'Maintenance', 'Deprecated']
-DEFAULT_PATCH_TYPES = ['Major', 'Minor', 'Patch',
-                       'Bug-Fix', 'Security', 'Documentation', 'Maintenance']
-
-DEFAULT_CONFIG = {
-    'template_name': 'Standard Developer Header',
-    'defaults': {
-        'organization': 'Organization', 'artifact_type': 'script', 'name': '{filename_stem}', 'codename': '',
-        'owner': 'Developer Name', 'title': 'Developer Position', 'created_date': date.today().isoformat(),
-        'purpose': 'Describe what this script/service/module does.',
-        'impact': 'Describe affected systems, users, workflows, or processes.',
-        'risk': 'Low', 'build_stage': 'Alpha', 'patch_type': 'Minor', 'version': 'v1.0.0-alpha',
-        'copyright_owner': 'Developer', 'copyright_start_year': '', 'copyright_end_year': str(date.today().year), 'license': ''},
-    'settings': {'artifact_types': DEFAULT_PROJECT_TYPE, 'risk_levels': DEFAULT_RISK_LEVELS, 'build_stages': DEFAULT_BUILD_STAGES, 'patch_types': DEFAULT_PATCH_TYPES},
-    'template_lines': ['; =============================================================================', '; {organization}', ';', '; Type        : {artifact_type}', '; Name        : {name}', '; Codename    : {codename}', '; Owner       : {owner}', '; Title       : {title}', '; Created     : {created}', ';', '; Purpose :', ';   {purpose}', ';', '; Impact :', ';   {impact}', ';', '; Risk Level :', ';   {risk}', ';', '; Build Stage :', ';   {build_stage}', ';', '; {patch_type} Patch: {version}', ';', '; {copyright_section}', '; {license_section}', '; ============================================================================='],
-    'languages': {
-        '.au3': {'name': 'AutoIt', 'style': 'line', 'line_prefix': '; ', 'block_open': '', 'block_close': ''},
-        '.cs': {'name': 'C#', 'style': 'block', 'line_prefix': ' * ', 'block_open': '/*', 'block_close': ' */'},
-        '.py': {'name': 'Python', 'style': 'block', 'line_prefix': '', 'block_open': '\"\"\"', 'block_close': '\"\"\"'},
-        '.ps1': {'name': 'PowerShell', 'style': 'block', 'line_prefix': '', 'block_open': '<#', 'block_close': '#>'},
-        '.js': {'name': 'JavaScript', 'style': 'block', 'line_prefix': ' * ', 'block_open': '/**', 'block_close': ' */'},
-        '.ts': {'name': 'TypeScript', 'style': 'block', 'line_prefix': ' * ', 'block_open': '/**', 'block_close': ' */'},
-        '.java': {'name': 'Java', 'style': 'block', 'line_prefix': ' * ', 'block_open': '/**', 'block_close': ' */'},
-        '.go': {'name': 'Go', 'style': 'block', 'line_prefix': ' * ', 'block_open': '/*', 'block_close': ' */'},
-        '.c': {'name': 'C', 'style': 'block', 'line_prefix': ' * ', 'block_open': '/*', 'block_close': ' */'},
-        '.h': {'name': 'C/C++ Header', 'style': 'block', 'line_prefix': ' * ', 'block_open': '/*', 'block_close': ' */'},
-        '.cpp': {'name': 'C++', 'style': 'block', 'line_prefix': ' * ', 'block_open': '/*', 'block_close': ' */'},
-        '.hpp': {'name': 'C++ Header', 'style': 'block', 'line_prefix': ' * ', 'block_open': '/*', 'block_close': ' */'},
-        '.html': {'name': 'HTML', 'style': 'block', 'line_prefix': '', 'block_open': '<!--', 'block_close': '-->'},
-        '.xml': {'name': 'XML', 'style': 'block', 'line_prefix': '', 'block_open': '<!--', 'block_close': '-->'}},
-    'options': {'backup_before_write': True, 'backup_extension': '.bak', 'global_plugins_enabled': True, 'project_plugins_enabled': True, 'skip_directories': ['.git', '.svn', '.hg', '.vs', '.vscode', 'bin', 'obj', 'node_modules', 'dist', 'build', '__pycache__'], 'ignore_globs': ['*.bak', '*.tmp', '*.generated.*'], 'preserve_shebang': True, 'preserve_xml_declaration': True, 'preserve_encoding_comment': True}}
-
-DEFAULT_PROJECT_CONFIG = {'enabled': True, 'include_extensions': [], 'exclude_extensions': [], 'ignore_directories': ['bin', 'obj', '.git', '.vs', '.vscode'], 'ignore_files': [
-], 'ignore_globs': ['*.bak', '*.tmp'], 'plugins_enabled': True, 'project_plugins_directory': PLUGIN_DIR, 'header_defaults': {}, 'template_lines': []}
 FIELD_LABELS = {'organization': ['Organization'], 'artifact_type': ['Type', 'Artifact Type'], 'name': ['Name', 'Script', 'Application', 'Library'], 'codename': ['Codename', 'Code Name', 'Internal Codename'], 'owner': ['Owner'], 'title': ['Title'], 'created': [
     'Created'], 'purpose': ['Purpose'], 'impact': ['Impact'], 'risk': ['Risk Level', 'Risk'], 'build_stage': ['Build Stage', 'Release Stage', 'Stage', 'Pre-Release Stage'], 'patch_line': ['Patch'], 'copyright': ['Copyright'], 'license': ['License', 'Licensing']}
 PATCH_LINE_RE = re.compile(
@@ -244,19 +198,19 @@ def user_config_dir() -> Path:
     return Path(appdata)/'HeaderForge' if appdata else Path.home()/'.headerforge'
 
 
-def user_config_path() -> Path: return user_config_dir()/CONFIG_FILE
+def user_config_path() -> Path: return user_config_dir()/config_handler.ConfigHandler.Config_File
 
 
 def config_path() -> Path:
     # Override order: CLI --config, then HEADERFORGE_CONFIG, then AppData.
-    if CONFIG_OVERRIDE_PATH is not None:
-        return CONFIG_OVERRIDE_PATH.expanduser()
+    if config_handler.ConfigHandler.Config_Override_Path is not None:
+        return config_handler.ConfigHandler.Config_Override_Path.expanduser()
     env = os.getenv('HEADERFORGE_CONFIG')
     return Path(env).expanduser() if env else user_config_path()
 
 
 def project_config_path(
-    root: Path) -> Path: return (root if root.is_dir() else root.parent)/PROJECT_CONFIG_FILE
+    root: Path) -> Path: return (root if root.is_dir() else root.parent)/config_handler.ConfigHandler.Project_Config_File
 
 
 def migrate_config(cfg: dict) -> None:
@@ -271,20 +225,20 @@ def migrate_config(cfg: dict) -> None:
     d.setdefault('copyright_end_year', str(date.today().year))
     d.setdefault('license', '')
     s = cfg.setdefault('settings', {})
-    s.setdefault('artifact_types', DEFAULT_PROJECT_TYPE)
-    s.setdefault('risk_levels', DEFAULT_RISK_LEVELS)
-    s.setdefault('build_stages', DEFAULT_BUILD_STAGES)
-    s.setdefault('patch_types', DEFAULT_PATCH_TYPES)
+    s.setdefault('artifact_types', config_handler.ConfigHandler.Default_Project_Types)
+    s.setdefault('risk_levels', config_handler.ConfigHandler.Default_Risk_Levels)
+    s.setdefault('build_stages', config_handler.ConfigHandler.Default_Build_Stages)
+    s.setdefault('patch_types', config_handler.ConfigHandler.Default_Patch_Types)
 
 
 def load_config() -> dict:
-    cfg = load_json_if_exists(config_path(), DEFAULT_CONFIG)
+    cfg = load_json_if_exists(config_path(), config_handler.ConfigHandler.Default_Config)
     migrate_config(cfg)
     return cfg
 
 
 def load_project_config(root: Path) -> dict: return load_json_if_exists(
-    project_config_path(root), DEFAULT_PROJECT_CONFIG)
+    project_config_path(root), config_handler.ConfigHandler.Default_Project_Config)
 
 
 def parse_created_date(value: str) -> date:
@@ -348,8 +302,8 @@ def clean_header_line(line: str) -> str:
 
 def find_managed_header_bounds(content: str) -> Optional[Tuple[int, int]]:
     # Locate the HeaderForge markers, then expand to include the surrounding comment wrapper.
-    b = content.find(HEADER_BEGIN)
-    e = content.find(HEADER_END)
+    b = content.find(config_handler.ConfigHandler.Header_Begin)
+    e = content.find(config_handler.ConfigHandler.Header_End)
     if b < 0 or e < 0 or e < b:
         return None
     start = content.rfind('\n', 0, b)
@@ -374,7 +328,7 @@ def extract_managed_header(content: str) -> Optional[str]:
 
 def parse_managed_header_values(header_text: str) -> dict:
     lines = [clean_header_line(x) for x in header_text.splitlines()]
-    lines = [x for x in lines if x and x not in (HEADER_BEGIN, HEADER_END)]
+    lines = [x for x in lines if x and x not in (config_handler.ConfigHandler.Header_Begin, config_handler.ConfigHandler.Header_End)]
     values = {}
     for idx, line in enumerate(lines):
         pm = PATCH_LINE_RE.match(line)
@@ -419,11 +373,11 @@ def parse_managed_header_values(header_text: str) -> dict:
 def load_plugins(global_cfg: dict, project_root: Optional[Path], project_cfg: dict) -> List[PluginModule]:
     paths = []
     if global_cfg.get('options', {}).get('global_plugins_enabled', True):
-        gd = user_config_dir()/PLUGIN_DIR
+        gd = user_config_dir()/config_handler.ConfigHandler.Plugin_Directory
         paths += sorted(gd.glob('*.py')) if gd.exists() else []
     if project_root and project_cfg.get('enabled', True) and project_cfg.get('plugins_enabled', True) and global_cfg.get('options', {}).get('project_plugins_enabled', True):
         root = project_root if project_root.is_dir() else project_root.parent
-        pd = root/project_cfg.get('project_plugins_directory', PLUGIN_DIR)
+        pd = root/project_cfg.get('project_plugins_directory', config_handler.ConfigHandler.Plugin_Directory)
         paths += sorted(pd.glob('*.py')) if pd.exists() else []
     out = []
     for path in paths:
@@ -583,11 +537,11 @@ def build_header(path: Path, cfg: dict, pcfg: dict, plugins: List[PluginModule],
     lines = []
     if style == 'block' and bo:
         lines.append(bo)
-    lines.append(f'{lp}{HEADER_BEGIN}')
+    lines.append(f'{lp}{config_handler.ConfigHandler.Header_Begin}')
     for line in template_core(path, cfg, pcfg, plugins, vals):
         c = strip_template(line)
         lines.append(f'{lp}{c}' if c else lp.rstrip())
-    lines.append(f'{lp}{HEADER_END}')
+    lines.append(f'{lp}{config_handler.ConfigHandler.Header_End}')
     if style == 'block' and bc:
         lines.append(bc)
     return '\n'.join(lines).rstrip()+'\n\n'
@@ -641,7 +595,7 @@ class ToolTip:
 class HeaderForgeApp:
     def __init__(self, root: 'tk.Tk'):
         self.root = root
-        root.title(f'{APP_NAME} {APP_VERSION}')
+        root.title(f'{config_handler.ConfigHandler.App_Name} {config_handler.ConfigHandler.App_Version}')
         root.geometry('1720x1000')
         self.cfg = load_config()
         self.project_root = Path.cwd()
@@ -914,7 +868,7 @@ class HeaderForgeApp:
         self.builder_frame.columnconfigure(1, weight=1)
 
     def _add_standard_fields(self):
-        for args in [('organization', 'Organization'), ('artifact_type', 'Artifact Type', 'combo', self.settings_list('artifact_types', DEFAULT_PROJECT_TYPE)), ('name', 'Name'), ('codename', 'Codename'), ('owner', 'Owner'), ('title', 'Title'), ('created_date', 'Created Date', 'date'), ('purpose', 'Purpose', 'text'), ('impact', 'Impact', 'text'), ('risk', 'Risk', 'combo', self.settings_list('risk_levels', DEFAULT_RISK_LEVELS)), ('build_stage', 'Build Stage', 'combo', self.settings_list('build_stages', DEFAULT_BUILD_STAGES)), ('patch_type', 'Patch Type', 'combo', self.settings_list('patch_types', DEFAULT_PATCH_TYPES)), ('version', 'Version'), ('copyright_owner', 'Copyright Owner'), ('copyright_start_year', 'Copyright Start Year'), ('copyright_end_year', 'Copyright End Year'), ('license', 'License')]:
+        for args in [('organization', 'Organization'), ('artifact_type', 'Artifact Type', 'combo', self.settings_list('artifact_types', config_handler.ConfigHandler.Default_Project_Types)), ('name', 'Name'), ('codename', 'Codename'), ('owner', 'Owner'), ('title', 'Title'), ('created_date', 'Created Date', 'date'), ('purpose', 'Purpose', 'text'), ('impact', 'Impact', 'text'), ('risk', 'Risk', 'combo', self.settings_list('risk_levels', config_handler.ConfigHandler.Default_Risk_Levels)), ('build_stage', 'Build Stage', 'combo', self.settings_list('build_stages', config_handler.ConfigHandler.Default_Build_Stages)), ('patch_type', 'Patch Type', 'combo', self.settings_list('patch_types', config_handler.ConfigHandler.Default_Patch_Types)), ('version', 'Version'), ('copyright_owner', 'Copyright Owner'), ('copyright_start_year', 'Copyright Start Year'), ('copyright_end_year', 'Copyright End Year'), ('license', 'License')]:
             self._add_field(*args)
 
     def _add_plugin_fields(self):
@@ -984,7 +938,7 @@ class HeaderForgeApp:
                   style='Muted.TLabel').pack(anchor='w')
         grid = ttk.Frame(self.settings_tab)
         grid.pack(fill='both', expand=True)
-        for idx, (key, title, fallback) in enumerate([('artifact_types', 'Artifact Types', DEFAULT_PROJECT_TYPE), ('risk_levels', 'Risk Levels', DEFAULT_RISK_LEVELS), ('build_stages', 'Build Stages', DEFAULT_BUILD_STAGES), ('patch_types', 'Patch Types', DEFAULT_PATCH_TYPES)]):
+        for idx, (key, title, fallback) in enumerate([('artifact_types', 'Artifact Types', config_handler.ConfigHandler.Default_Project_Types), ('risk_levels', 'Risk Levels', config_handler.ConfigHandler.Default_Risk_Levels), ('build_stages', 'Build Stages', config_handler.ConfigHandler.Default_Build_Stages), ('patch_types', 'Patch Types', config_handler.ConfigHandler.Default_Patch_Types)]):
             lf = ttk.LabelFrame(grid, text=title, padding=6)
             lf.grid(row=idx//2, column=idx % 2, sticky='nsew', padx=5, pady=5)
             tx = tk.Text(lf, height=12, width=42)
@@ -1075,7 +1029,7 @@ class HeaderForgeApp:
     def current_user_config(self) -> dict:
         # Persist the user's current builder profile plus editable dropdown
         # settings. Project-specific file selections/staged changes are not user defaults.
-        cfg = deep_merge(DEFAULT_CONFIG, self.cfg)
+        cfg = deep_merge(config_handler.ConfigHandler.Default_Config, self.cfg)
         cfg['defaults'].update(self.get_overrides())
         if hasattr(self, 'setting_widgets'):
             cfg.setdefault('settings', {})
@@ -1100,10 +1054,10 @@ class HeaderForgeApp:
             self.refresh_previews()
             self.log(f'Saved user defaults: {config_path()}', 'SUCCESS')
             messagebox.showinfo(
-                APP_NAME, f'Saved user defaults to:\n\n{config_path()}')
+                config_handler.ConfigHandler.App_Name, f'Saved user defaults to:\n\n{config_path()}')
         except Exception as e:
             messagebox.showerror(
-                APP_NAME, f'Could not save user defaults:\n\n{e}')
+                config_handler.ConfigHandler.App_Name, f'Could not save user defaults:\n\n{e}')
             self.log(f'Failed to save user defaults: {e}', 'ERROR')
 
     def load_user_defaults(self):
@@ -1116,12 +1070,12 @@ class HeaderForgeApp:
             self.log(f'Loaded user defaults: {config_path()}', 'SUCCESS')
         except Exception as e:
             messagebox.showerror(
-                APP_NAME, f'Could not load user defaults:\n\n{e}')
+                config_handler.ConfigHandler.App_Name, f'Could not load user defaults:\n\n{e}')
             self.log(f'Failed to load user defaults: {e}', 'ERROR')
 
     def reset_builtin_defaults(self):
         # Session-only reset. This intentionally does not delete the AppData file.
-        self.cfg = clone_json(DEFAULT_CONFIG)
+        self.cfg = clone_json(config_handler.ConfigHandler.Default_Config)
         migrate_config(self.cfg)
         self._load_fields()
         self.set_config_location_label()
@@ -1133,7 +1087,7 @@ class HeaderForgeApp:
     def override_config_file(self):
         global CONFIG_OVERRIDE_PATH
         chosen = filedialog.asksaveasfilename(title='Use HeaderForge Config File', defaultextension='.json', filetypes=[
-                                              ('JSON files', '*.json'), ('All files', '*.*')], initialfile=CONFIG_FILE)
+                                              ('JSON files', '*.json'), ('All files', '*.*')], initialfile=config_handler.ConfigHandler.Config_File)
         if not chosen:
             self.log('Config override canceled.')
             return
@@ -1163,7 +1117,7 @@ class HeaderForgeApp:
             self.log(f'Exported template: {path}', 'SUCCESS')
         except Exception as e:
             messagebox.showerror(
-                APP_NAME, f'Could not export template:\n\n{e}')
+                config_handler.ConfigHandler.App_Name, f'Could not export template:\n\n{e}')
             self.log(f'Failed to export template: {e}', 'ERROR')
 
     def import_template(self):
@@ -1189,7 +1143,7 @@ class HeaderForgeApp:
             self.log(f'Imported template: {path}', 'SUCCESS')
         except Exception as e:
             messagebox.showerror(
-                APP_NAME, f'Could not import template:\n\n{e}')
+                config_handler.ConfigHandler.App_Name, f'Could not import template:\n\n{e}')
             self.log(f'Failed to import template: {e}', 'ERROR')
 
     def capture_selected_paths(self): return {
@@ -1202,7 +1156,7 @@ class HeaderForgeApp:
         if not p.exists():
             self.config_text.delete('1.0', 'end')
             self.config_text.insert('1.0', json.dumps(
-                DEFAULT_PROJECT_CONFIG, indent=4))
+                config_handler.ConfigHandler.Default_Project_Config, indent=4))
 
     def open_project(self):
         s = filedialog.askdirectory(initialdir=str(self.project_root))
@@ -1236,14 +1190,14 @@ class HeaderForgeApp:
             self.log(f'Project config already exists: {p}')
             self.load_project_config_into_editor()
             return
-        save_json(p, DEFAULT_PROJECT_CONFIG)
+        save_json(p, config_handler.ConfigHandler.Default_Project_Config)
         self.project_cfg = load_project_config(self.project_root)
         self.load_project_config_into_editor()
         self.log(f'Created project config: {p}', 'SUCCESS')
 
     def save_project_config(self):
         try:
-            self.project_cfg = deep_merge(DEFAULT_PROJECT_CONFIG, json.loads(
+            self.project_cfg = deep_merge(config_handler.ConfigHandler.Default_Project_Config, json.loads(
                 self.config_text.get('1.0', 'end-1c').strip() or json.dumps(self.project_cfg)))
             save_json(project_config_path(self.project_root), self.project_cfg)
             selected = self.capture_selected_paths()
@@ -1254,7 +1208,7 @@ class HeaderForgeApp:
                 f'Saved project config: {project_config_path(self.project_root)}', 'SUCCESS')
         except Exception as e:
             messagebox.showerror(
-                APP_NAME, f'Invalid project config JSON:\n\n{e}')
+                config_handler.ConfigHandler.App_Name, f'Invalid project config JSON:\n\n{e}')
             self.log(f'Failed to save project config: {e}', 'ERROR')
 
     def apply_settings_in_memory(self):
@@ -1273,14 +1227,14 @@ class HeaderForgeApp:
 
     def create_plugin_dir(self):
         root = self.project_root if self.project_root.is_dir() else self.project_root.parent
-        pd = root/self.project_cfg.get('project_plugins_directory', PLUGIN_DIR)
+        pd = root/self.project_cfg.get('project_plugins_directory', config_handler.ConfigHandler.Plugin_Directory)
         pd.mkdir(parents=True, exist_ok=True)
         self.log(f'Created/verified plugin directory: {pd}', 'SUCCESS')
         self.reload_plugins(initial=True)
 
     def create_sample_plugin(self):
         root = self.project_root if self.project_root.is_dir() else self.project_root.parent
-        pd = root/self.project_cfg.get('project_plugins_directory', PLUGIN_DIR)
+        pd = root/self.project_cfg.get('project_plugins_directory', config_handler.ConfigHandler.Plugin_Directory)
         pd.mkdir(parents=True, exist_ok=True)
         sample = pd/'sample_headerforge_plugin.py'
         if sample.exists():
@@ -1401,13 +1355,13 @@ class HeaderForgeApp:
     def import_selected_header(self):
         p = self.selected_file()
         if not p:
-            messagebox.showinfo(APP_NAME, 'Select a file first.')
+            messagebox.showinfo(config_handler.ConfigHandler.App_Name, 'Select a file first.')
             self.log('Import failed: no file selected.', 'ERROR')
             return
         h = extract_managed_header(read_text_lossy(p))
         if not h:
             messagebox.showinfo(
-                APP_NAME, 'Selected file does not contain a managed HeaderForge header.')
+                config_handler.ConfigHandler.App_Name, 'Selected file does not contain a managed HeaderForge header.')
             self.log(f'Import failed: no managed header in {p.name}.', 'ERROR')
             return
         for k, val in parse_managed_header_values(h).items():
@@ -1452,7 +1406,7 @@ class HeaderForgeApp:
             by[r.language] = by.get(r.language, 0)+1
         pc = project_config_path(self.project_root)
         pd = (self.project_root if self.project_root.is_dir() else self.project_root.parent) / \
-            self.project_cfg.get('project_plugins_directory', PLUGIN_DIR)
+            self.project_cfg.get('project_plugins_directory', config_handler.ConfigHandler.Plugin_Directory)
         lines = [f'Project: {self.project_root}', f"Project config: {'Found' if pc.exists() else 'Missing'} - {pc}", f"Plugin directory: {'Found' if pd.exists() else 'Missing'} - {pd}",
                  f"Global config: {'Found' if config_path().exists() else 'Missing'} - {config_path()}", '', 'Languages:']+([f'- {k}: {v}' for k, v in sorted(by.items())] if by else ['- No files scanned yet.'])
         lines += ['', 'Plugins:']+([f"- {p.name}: {'ERROR' if p.error else 'OK'} ({p.path})" for p in self.state.plugins] or ['- No plugins loaded.'])+[
@@ -1537,7 +1491,7 @@ class HeaderForgeApp:
         ) if Path(i) in self.state.staged]
         if not selected:
             messagebox.showinfo(
-                APP_NAME, 'Select one or more staged changes first.')
+                config_handler.ConfigHandler.App_Name, 'Select one or more staged changes first.')
             return
         self.show_text_window('Selected Staged Diff', '\n'.join(
             unified_diff(c) for c in selected))
@@ -1548,7 +1502,7 @@ class HeaderForgeApp:
     def show_staged_diff(self):
         """This shows a diff of all staged changes without actually pushing those changes."""
         if not self.state.staged:
-            messagebox.showinfo(APP_NAME, 'No staged changes yet.')
+            messagebox.showinfo(config_handler.ConfigHandler.App_Name, 'No staged changes yet.')
             self.log('Review staged requested but nothing is staged.')
             return
         self.show_text_window('Staged Diff', '\n'.join(
@@ -1557,7 +1511,7 @@ class HeaderForgeApp:
     def push_staged(self):
         """This pushes the staged header changes out to the target files"""
         if not self.state.staged:
-            messagebox.showinfo(APP_NAME, 'No staged changes to push.')
+            messagebox.showinfo(config_handler.ConfigHandler.App_Name, 'No staged changes to push.')
             self.log('Push skipped: no staged changes.')
             return
         errors = []
@@ -1590,7 +1544,7 @@ class HeaderForgeApp:
         """This undoes the last push made to the staged files."""
         if not self.state.last_push_backups:
             messagebox.showinfo(
-                APP_NAME, 'No backup map from the last push is available.')
+                config_handler.ConfigHandler.App_Name, 'No backup map from the last push is available.')
             self.log('Undo skipped: no last-push backups tracked.')
             return
         errors = []
@@ -1614,7 +1568,7 @@ class HeaderForgeApp:
                 f'Undo completed successfully. Restored files: {restored}.', 'SUCCESS')
 
     def show_text_window(self, title, text): win = tk.Toplevel(self.root); win.title(
-        f'{APP_NAME} - {title}'); win.geometry('1250x850'); area = self._text_area(win); area.insert('1.0', text)
+        f'{config_handler.ConfigHandler.App_Name} - {title}'); win.geometry('1250x850'); area = self._text_area(win); area.insert('1.0', text)
 
 
 def run_gui():
@@ -1678,7 +1632,7 @@ def main() -> int:
         root.mkdir(parents=True, exist_ok=True)
         p = project_config_path(root)
         if not p.exists():
-            save_json(p, DEFAULT_PROJECT_CONFIG)
+            save_json(p, config_handler.ConfigHandler.Default_Project_Config)
             print(f'CREATED: {p}')
         else:
             print(f'EXISTS: {p}')
@@ -1686,7 +1640,7 @@ def main() -> int:
     if a.init_plugin_dir:
         root = Path(a.init_plugin_dir)
         root.mkdir(parents=True, exist_ok=True)
-        pd = root/PLUGIN_DIR
+        pd = root/config_handler.ConfigHandler.Plugin_Directory
         pd.mkdir(parents=True, exist_ok=True)
         print(f'READY: {pd}')
         return 0
