@@ -15,7 +15,7 @@ import shutil
 import sys
 import tempfile
 import traceback
-from dataschemes import plugin_module, staged_change
+from dataschemes import plugin_module, staged_change, file_record
 from configs import config_handler
 from help import help_handler
 from dataclasses import dataclass, field
@@ -38,16 +38,8 @@ PATCH_LINE_RE = re.compile(
     r'^(?P<patch_type>.+?)\s+Patch\s*:\s*(?P<version>.+)$', re.I)
 
 @dataclass
-class FileRecord:
-    path: Path
-    rel: str
-    language: str
-    status: str
-    selected: bool = False
-
-@dataclass
 class AppState:
-    files: List[FileRecord] = field(default_factory=list)
+    files: List[file_record.FileRecord] = field(default_factory=list)
     staged: Dict[Path, staged_change.StagedChange] = field(default_factory=dict)
     plugins: List[plugin_module.PluginModule] = field(default_factory=list)
     last_push_backups: Dict[Path, Path] = field(default_factory=dict)
@@ -1175,7 +1167,7 @@ class HeaderForgeApp:
                     read_text_lossy(p)) else 'Missing'
                 lang = langmap.get(p.suffix.lower(), {}).get(
                     'name', p.suffix.lower())
-                rec.append(FileRecord(p, rel, lang, status,
+                rec.append(file_record.FileRecord(p, rel, lang, status,
                            True if first else p in preserved))
             self.state.files = rec
             self.populate_tree()
