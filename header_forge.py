@@ -19,6 +19,7 @@ from dataschemes import plugin_module, staged_change, file_record
 from configs import config_handler
 from help import help_handler
 from helpers import json_helper, misc_helper
+from headerforge import forge
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
@@ -32,11 +33,6 @@ except Exception as exc:
     TK_IMPORT_ERROR = exc
 else:
     TK_IMPORT_ERROR = None
-
-FIELD_LABELS = {'organization': ['Organization'], 'artifact_type': ['Type', 'Artifact Type'], 'name': ['Name', 'Script', 'Application', 'Library'], 'codename': ['Codename', 'Code Name', 'Internal Codename'], 'owner': ['Owner'], 'title': ['Title'], 'created': [
-    'Created'], 'purpose': ['Purpose'], 'impact': ['Impact'], 'risk': ['Risk Level', 'Risk'], 'build_stage': ['Build Stage', 'Release Stage', 'Stage', 'Pre-Release Stage'], 'patch_line': ['Patch'], 'copyright': ['Copyright'], 'license': ['License', 'Licensing']}
-PATCH_LINE_RE = re.compile(
-    r'^(?P<patch_type>.+?)\s+Patch\s*:\s*(?P<version>.+)$', re.I)
 
 @dataclass
 class AppState:
@@ -89,87 +85,6 @@ def write_text_atomic(path: Path, text: str) -> None:
         except OSError:
             pass
         raise
-
-
-def clean_header_line(line: str) -> str:
-    s = html.unescape(line).rstrip('\r\n').strip()
-    if s in ('/*', '/**', '*/', '<#', '#>', '<!--', '-->', '"""'):
-        return ''
-    for p in ('*', ';', '#', '//'):
-        if s.startswith(p):
-            return s[len(p):].strip()
-    return s
-
-
-def find_managed_header_bounds(content: str) -> Optional[Tuple[int, int]]:
-    # Locate the HeaderForge markers, then expand to include the surrounding comment wrapper.
-    b = content.find(config_handler.ConfigHandler.Header_Begin)
-    e = content.find(config_handler.ConfigHandler.Header_End)
-    if b < 0 or e < 0 or e < b:
-        return None
-    start = content.rfind('\n', 0, b)
-    start = 0 if start < 0 else start+1
-    end = content.find('\n', e)
-    end = len(content) if end < 0 else end+1
-    tail = content[end:end+140]
-    for closer in (' */', '*/', '"""', '#>', '-->'):
-        idx = tail.find(closer)
-        if idx >= 0:
-            ce = end+idx+len(closer)
-            nl = content.find('\n', ce)
-            end = len(content) if nl < 0 else nl+1
-            break
-    return start, end
-
-
-def extract_managed_header(content: str) -> Optional[str]:
-    b = find_managed_header_bounds(content)
-    return None if not b else content[b[0]:b[1]]
-
-
-def parse_managed_header_values(header_text: str) -> dict:
-    lines = [clean_header_line(x) for x in header_text.splitlines()]
-    lines = [x for x in lines if x and x not in (config_handler.ConfigHandler.Header_Begin, config_handler.ConfigHandler.Header_End)]
-    values = {}
-    for idx, line in enumerate(lines):
-        pm = PATCH_LINE_RE.match(line)
-        if pm:
-            values['patch_type'] = pm.group('patch_type').strip()
-            values['version'] = pm.group('version').strip()
-            continue
-        if ':' not in line:
-            continue
-        label, raw = [x.strip() for x in line.split(':', 1)]
-        lower = label.lower()
-        for key, labels in FIELD_LABELS.items():
-            if lower in [x.lower() for x in labels]:
-                if key == 'created':
-                    values['created_date'] = misc_helper.parse_created_date(
-                        raw).isoformat()
-                elif key == 'build_stage':
-                    values['build_stage'] = config_handler.normalize_stage(raw)
-                elif key == 'copyright':
-                    values['copyright_owner'] = re.sub(
-                        r'^©\s*[0-9\-]*\s*', '', raw).strip()
-                elif key == 'license':
-                    values['license'] = raw
-                elif key != 'patch_line':
-                    values[key] = raw
-                break
-        if lower in ('purpose', 'impact', 'risk level', 'risk', 'build stage') and not raw:
-            c = []
-            for nxt in lines[idx+1:]:
-                if ':' in nxt:
-                    break
-                if nxt.strip('= -'):
-                    c.append(nxt.strip())
-            if c:
-                target = 'risk' if lower in (
-                    'risk level', 'risk') else 'build_stage' if lower == 'build stage' else lower
-                values[target] = config_handler.normalize_stage(
-                    ' '.join(c)) if target == 'build_stage' else ' '.join(c)
-    return values
-
 
 def load_plugins(global_cfg: dict, project_root: Optional[Path], project_cfg: dict) -> List[plugin_module.PluginModule]:
     paths = []
@@ -350,7 +265,7 @@ def build_header(path: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.
 
 def apply_header_to_text(content: str, suffix: str, header: str, cfg: dict) -> str:
     pre, body = split_preamble(content, suffix, cfg)
-    b = find_managed_header_bounds(body)
+    b = forge.find_managed_header_bounds(body)
     body = (body[:b[0]]+header+body[b[1]:].lstrip('\n')
             ) if b else header+body.lstrip('\n')
     return pre+body
@@ -358,7 +273,7 @@ def apply_header_to_text(content: str, suffix: str, header: str, cfg: dict) -> s
 
 def stage_change(path: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.PluginModule], overrides: Optional[dict]) -> staged_change.StagedChange:
     original = read_text_lossy(path)
-    existed = extract_managed_header(original) is not None
+    existed = forge.extract_managed_header(original) is not None
     updated = apply_header_to_text(original, path.suffix.lower(
     ), build_header(path, cfg, pcfg, plugins, overrides), cfg)
     op = 'Update Header' if existed and original != updated else 'Insert Header' if not existed and original != updated else 'No Change'
@@ -1080,7 +995,7 @@ class HeaderForgeApp:
             for p in files:
                 rel = str(p.relative_to(base)) if p.is_relative_to(
                     base) else str(p)
-                status = 'Existing' if extract_managed_header(
+                status = 'Existing' if forge.extract_managed_header(
                     read_text_lossy(p)) else 'Missing'
                 lang = langmap.get(p.suffix.lower(), {}).get(
                     'name', p.suffix.lower())
@@ -1159,13 +1074,13 @@ class HeaderForgeApp:
             messagebox.showinfo(config_handler.ConfigHandler.App_Name, 'Select a file first.')
             self.log('Import failed: no file selected.', 'ERROR')
             return
-        h = extract_managed_header(read_text_lossy(p))
+        h = forge.extract_managed_header(read_text_lossy(p))
         if not h:
             messagebox.showinfo(
                 config_handler.ConfigHandler.App_Name, 'Selected file does not contain a managed HeaderForge header.')
             self.log(f'Import failed: no managed header in {p.name}.', 'ERROR')
             return
-        for k, val in parse_managed_header_values(h).items():
+        for k, val in forge.parse_managed_header_values(h).items():
             if k not in self.field_vars:
                 continue
             if k in ('purpose', 'impact'):

@@ -63,6 +63,10 @@ class ConfigHandler:
     Default_Project_Config = {'enabled': True, 'include_extensions': [], 'exclude_extensions': [], 'ignore_directories': ['bin', 'obj', '.git', '.vs', '.vscode'], 'ignore_files': [
     ], 'ignore_globs': ['*.bak', '*.tmp'], 'plugins_enabled': True, 'project_plugins_directory': Plugin_Directory, 'header_defaults': {}, 'template_lines': []}
 
+    FIELD_LABELS = {'organization': ['Organization'], 'artifact_type': ['Type', 'Artifact Type'], 'name': ['Name', 'Script', 'Application', 'Library'], 'codename': ['Codename', 'Code Name', 'Internal Codename'], 'owner': ['Owner'], 'title': ['Title'], 'created': [
+    'Created'], 'purpose': ['Purpose'], 'impact': ['Impact'], 'risk': ['Risk Level', 'Risk'], 'build_stage': ['Build Stage', 'Release Stage', 'Stage', 'Pre-Release Stage'], 'patch_line': ['Patch'], 'copyright': ['Copyright'], 'license': ['License', 'Licensing']}
+
+
 
 def get_user_config_dir() -> Path:
     # Windows desktop-app behavior: use roaming AppData. Non-Windows fallback
