@@ -52,27 +52,12 @@ def app_dir() -> Path:
     except NameError:
         return Path.cwd()
 
-def user_config_dir() -> Path:
-    # Windows desktop-app behavior: use roaming AppData. Non-Windows fallback
-    # keeps the tool portable for Linux/macOS/dev containers.
-    appdata = os.getenv('APPDATA')
-    return Path(appdata)/'HeaderForge' if appdata else Path.home()/'.headerforge'
-
-
-def user_config_path() -> Path: return user_config_dir()/config_handler.ConfigHandler.Config_File
-
-
 def config_path() -> Path:
     # Override order: CLI --config, then HEADERFORGE_CONFIG, then AppData.
     if config_handler.ConfigHandler.Config_Override_Path is not None:
         return config_handler.ConfigHandler.Config_Override_Path.expanduser()
     env = os.getenv('HEADERFORGE_CONFIG')
-    return Path(env).expanduser() if env else user_config_path()
-
-
-def project_config_path(
-    root: Path) -> Path: return (root if root.is_dir() else root.parent)/config_handler.ConfigHandler.Project_Config_File
-
+    return Path(env).expanduser() if env else config_handler.get_user_config_path()
 
 def migrate_config(cfg: dict) -> None:
     d = cfg.setdefault('defaults', {})
@@ -93,13 +78,13 @@ def migrate_config(cfg: dict) -> None:
 
 
 def load_config() -> dict:
-    cfg = json_helper.load_json_if_exists(config_path(), config_handler.ConfigHandler.Default_Config)
+    cfg = json_helper.load_json_if_exists(config_handler.get_user_config_path(), config_handler.ConfigHandler.Default_Config)
     migrate_config(cfg)
     return cfg
 
 
 def load_project_config(root: Path) -> dict: return json_helper.load_json_if_exists(
-    project_config_path(root), config_handler.ConfigHandler.Default_Project_Config)
+    config_handler.get_project_config_path(root), config_handler.ConfigHandler.Default_Project_Config)
 
 
 def parse_created_date(value: str) -> date:
@@ -234,7 +219,7 @@ def parse_managed_header_values(header_text: str) -> dict:
 def load_plugins(global_cfg: dict, project_root: Optional[Path], project_cfg: dict) -> List[plugin_module.PluginModule]:
     paths = []
     if global_cfg.get('options', {}).get('global_plugins_enabled', True):
-        gd = user_config_dir()/config_handler.ConfigHandler.Plugin_Directory
+        gd = config_handler.get_user_config_dir()/config_handler.ConfigHandler.Plugin_Directory
         paths += sorted(gd.glob('*.py')) if gd.exists() else []
     if project_root and project_cfg.get('enabled', True) and project_cfg.get('plugins_enabled', True) and global_cfg.get('options', {}).get('project_plugins_enabled', True):
         root = project_root if project_root.is_dir() else project_root.parent
@@ -657,7 +642,7 @@ class HeaderForgeApp:
         self._builder_button(templates, 'Import Template', self.import_template,
                              'Import a JSON template and load it into the builder.')
         self.config_location_var = tk.StringVar(
-            value=f'User config: {config_path()}')
+            value=f'User config: {config_handler.get_user_config_path()}')
         ttk.Label(actions, textvariable=self.config_location_var,
                   style='Muted.TLabel').pack(anchor='w', pady=(6, 0))
         canvas = tk.Canvas(self.builder_tab, highlightthickness=0)
@@ -904,18 +889,18 @@ class HeaderForgeApp:
 
     def set_config_location_label(self):
         if hasattr(self, 'config_location_var'):
-            self.config_location_var.set(f'User config: {config_path()}')
+            self.config_location_var.set(f'User config: {config_handler.get_user_config_path()}')
 
     def save_user_defaults(self):
         try:
             self.cfg = self.current_user_config()
-            json_helper.save_json(config_path(), self.cfg)
+            json_helper.save_json(config_handler.get_user_config_path(), self.cfg)
             self.set_config_location_label()
             self.update_dashboard()
             self.refresh_previews()
-            self.log(f'Saved user defaults: {config_path()}', 'SUCCESS')
+            self.log(f'Saved user defaults: {config_handler.get_user_config_path()}', 'SUCCESS')
             messagebox.showinfo(
-                config_handler.ConfigHandler.App_Name, f'Saved user defaults to:\n\n{config_path()}')
+                config_handler.ConfigHandler.App_Name, f'Saved user defaults to:\n\n{config_handler.get_user_config_path()}')
         except Exception as e:
             messagebox.showerror(
                 config_handler.ConfigHandler.App_Name, f'Could not save user defaults:\n\n{e}')
@@ -928,7 +913,7 @@ class HeaderForgeApp:
             self.set_config_location_label()
             self.update_dashboard()
             self.refresh_previews()
-            self.log(f'Loaded user defaults: {config_path()}', 'SUCCESS')
+            self.log(f'Loaded user defaults: {config_handler.get_user_config_path()}', 'SUCCESS')
         except Exception as e:
             messagebox.showerror(
                 config_handler.ConfigHandler.App_Name, f'Could not load user defaults:\n\n{e}')
@@ -1011,7 +996,7 @@ class HeaderForgeApp:
         r.path for r in self.state.files if r.selected}
 
     def update_config_state(self):
-        p = project_config_path(self.project_root)
+        p = config_handler.get_project_config_path(self.project_root)
         self.config_state.configure(
             text=f"Project config: {'Found' if p.exists() else 'Not found'} - {p}")
         if not p.exists():
@@ -1034,7 +1019,7 @@ class HeaderForgeApp:
         self.log(f'Opened project: {self.project_root}', 'SUCCESS')
 
     def load_project_config_into_editor(self):
-        p = project_config_path(self.project_root)
+        p = config_handler.get_project_config_path(self.project_root)
         if not p.exists():
             self.update_config_state()
             self.log(f'Project config not found. Nothing was created: {p}')
@@ -1046,7 +1031,7 @@ class HeaderForgeApp:
         self.log(f'Loaded project config: {p}', 'SUCCESS')
 
     def create_project_config(self):
-        p = project_config_path(self.project_root)
+        p = config_handler.get_project_config_path(self.project_root)
         if p.exists():
             self.log(f'Project config already exists: {p}')
             self.load_project_config_into_editor()
@@ -1060,13 +1045,13 @@ class HeaderForgeApp:
         try:
             self.project_cfg = json_helper.deep_merge(config_handler.ConfigHandler.Default_Project_Config, json.loads(
                 self.config_text.get('1.0', 'end-1c').strip() or json.dumps(self.project_cfg)))
-            json_helper.save_json(project_config_path(self.project_root), self.project_cfg)
+            json_helper.save_json(config_handler.get_project_config_path(self.project_root), self.project_cfg)
             selected = self.capture_selected_paths()
             self.reload_plugins(initial=True)
             self.scan(preserved_selection=selected)
             self.update_config_state()
             self.log(
-                f'Saved project config: {project_config_path(self.project_root)}', 'SUCCESS')
+                f'Saved project config: {config_handler.get_project_config_path(self.project_root)}', 'SUCCESS')
         except Exception as e:
             messagebox.showerror(
                 config_handler.ConfigHandler.App_Name, f'Invalid project config JSON:\n\n{e}')
@@ -1083,8 +1068,8 @@ class HeaderForgeApp:
             'Applied settings in memory. Restart app to refresh existing combo dropdown lists fully.', 'SUCCESS')
         self.refresh_previews()
 
-    def save_global_config(self): self.apply_settings_in_memory(); json_helper.save_json(config_path(
-    ), self.cfg); self.set_config_location_label(); self.log(f'Saved user config: {config_path()}', 'SUCCESS')
+    def save_global_config(self): self.apply_settings_in_memory(); json_helper.save_json(config_handler.get_user_config_path(
+    ), self.cfg); self.set_config_location_label(); self.log(f'Saved user config: {config_handler.get_user_config_path()}', 'SUCCESS')
 
     def create_plugin_dir(self):
         root = self.project_root if self.project_root.is_dir() else self.project_root.parent
@@ -1265,11 +1250,11 @@ class HeaderForgeApp:
         by = {}
         for r in self.state.files:
             by[r.language] = by.get(r.language, 0)+1
-        pc = project_config_path(self.project_root)
+        pc = config_handler.get_project_config_path(self.project_root)
         pd = (self.project_root if self.project_root.is_dir() else self.project_root.parent) / \
             self.project_cfg.get('project_plugins_directory', config_handler.ConfigHandler.Plugin_Directory)
         lines = [f'Project: {self.project_root}', f"Project config: {'Found' if pc.exists() else 'Missing'} - {pc}", f"Plugin directory: {'Found' if pd.exists() else 'Missing'} - {pd}",
-                 f"Global config: {'Found' if config_path().exists() else 'Missing'} - {config_path()}", '', 'Languages:']+([f'- {k}: {v}' for k, v in sorted(by.items())] if by else ['- No files scanned yet.'])
+                 f"Global config: {'Found' if config_handler.get_user_config_path().exists() else 'Missing'} - {config_handler.get_user_config_path()}", '', 'Languages:']+([f'- {k}: {v}' for k, v in sorted(by.items())] if by else ['- No files scanned yet.'])
         lines += ['', 'Plugins:']+([f"- {p.name}: {'ERROR' if p.error else 'OK'} ({p.path})" for p in self.state.plugins] or ['- No plugins loaded.'])+[
             '', 'Staged Changes:']+([f'- {c.operation}: {c.path}' for c in self.state.staged.values()] or ['- Nothing staged.'])
         self.dashboard_text.delete('1.0', 'end')
@@ -1491,7 +1476,7 @@ def main() -> int:
     if a.init_project:
         root = Path(a.init_project)
         root.mkdir(parents=True, exist_ok=True)
-        p = project_config_path(root)
+        p = config_handler.get_project_config_path(root)
         if not p.exists():
             json_helper.save_json(p, config_handler.ConfigHandler.Default_Project_Config)
             print(f'CREATED: {p}')

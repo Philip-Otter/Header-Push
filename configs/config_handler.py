@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Optional
 from datetime import date
@@ -60,3 +61,15 @@ class ConfigHandler:
 
     Default_Project_Config = {'enabled': True, 'include_extensions': [], 'exclude_extensions': [], 'ignore_directories': ['bin', 'obj', '.git', '.vs', '.vscode'], 'ignore_files': [
     ], 'ignore_globs': ['*.bak', '*.tmp'], 'plugins_enabled': True, 'project_plugins_directory': Plugin_Directory, 'header_defaults': {}, 'template_lines': []}
+
+
+def get_user_config_dir() -> Path:
+    # Windows desktop-app behavior: use roaming AppData. Non-Windows fallback
+    # keeps the tool portable for Linux/macOS/dev containers.
+    appdata = os.getenv('APPDATA')
+    return Path(appdata)/'HeaderForge' if appdata else Path.home()/'.headerforge'
+
+def get_user_config_path() -> Path: return get_user_config_dir()/ConfigHandler.Config_File
+
+def get_project_config_path(
+    root: Path) -> Path: return (root if root.is_dir() else root.parent)/ConfigHandler.Project_Config_File
