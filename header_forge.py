@@ -18,6 +18,7 @@ import traceback
 from dataschemes import plugin_module, staged_change, file_record
 from configs import config_handler
 from help import help_handler
+from helpers import json_helper
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
@@ -52,11 +53,8 @@ def app_dir() -> Path:
         return Path.cwd()
 
 
-def clone_json(data: dict) -> dict: return json.loads(json.dumps(data))
-
-
 def deep_merge(base: dict, overlay: dict) -> dict:
-    out = clone_json(base)
+    out = json_helper.clone_json(base)
     for k, v in (overlay or {}).items():
         out[k] = deep_merge(out[k], v) if isinstance(
             v, dict) and isinstance(out.get(k), dict) else v
@@ -72,7 +70,7 @@ def save_json(path: Path, data: dict) -> None:
 
 
 def load_json_if_exists(path: Path, default: dict) -> dict: return deep_merge(default,
-                                                                              json.loads(path.read_text(encoding='utf-8'))) if path.exists() else clone_json(default)
+                                                                              json.loads(path.read_text(encoding='utf-8'))) if path.exists() else json_helper.clone_json(default)
 
 
 def user_config_dir() -> Path:
@@ -959,7 +957,7 @@ class HeaderForgeApp:
 
     def reset_builtin_defaults(self):
         # Session-only reset. This intentionally does not delete the AppData file.
-        self.cfg = clone_json(config_handler.ConfigHandler.Default_Config)
+        self.cfg = json_helper.clone_json(config_handler.ConfigHandler.Default_Config)
         migrate_config(self.cfg)
         self._load_fields()
         self.set_config_location_label()
