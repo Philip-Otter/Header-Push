@@ -3,28 +3,16 @@
 from __future__ import annotations
 
 import argparse
-import calendar
-import difflib
-import fnmatch
-import json
 import os
 import shutil
-import tempfile
-import traceback
-from dataschemes import plugin_module, staged_change, file_record, app_state
 from configs import config_handler
-from help import help_handler
-from helpers import json_helper, misc_helper, file_helper
+from helpers import json_helper, file_helper
 from headerforge import forge, plugin
-from gui import tool_tip, header_forge_gui
-from dataclasses import dataclass, field
-from datetime import date, datetime
+from gui import header_forge_gui
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 try:
     import tkinter as tk
-    from tkinter import filedialog, messagebox, ttk
 except Exception as exc:
     tk = filedialog = messagebox = ttk = None
     TK_IMPORT_ERROR = exc

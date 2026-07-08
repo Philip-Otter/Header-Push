@@ -4,3 +4,4 @@ dataschemes/__pycache__/
 helpers/__pycache__/
 headerforge/__pycache__/
 gui/__pycache__/
+__pycache__/*
