@@ -19,13 +19,6 @@ except Exception as exc:
 else:
     TK_IMPORT_ERROR = None
 
-def config_path() -> Path:
-    # Override order: CLI --config, then HEADERFORGE_CONFIG, then AppData.
-    if config_handler.ConfigHandler.Config_Override_Path is not None:
-        return config_handler.ConfigHandler.Config_Override_Path.expanduser()
-    env = os.getenv('HEADERFORGE_CONFIG')
-    return Path(env).expanduser() if env else config_handler.get_user_config_path()
-
 def run_gui():
     """Run the GUI application."""
     if tk is None:

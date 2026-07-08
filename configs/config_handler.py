@@ -136,3 +136,10 @@ def should_ignore_path(path: Path, root: Path, cfg: dict, pcfg: dict, plugins: L
     if any(fnmatch.fnmatch(path.name, p) or fnmatch.fnmatch(rels, p) for p in pats):
         return True
     return any(x is True for x in plugin.plugin_call(plugins, 'should_ignore', path, root, {'global': cfg, 'project': pcfg}))
+
+def config_path() -> Path:
+    # Override order: CLI --config, then HEADERFORGE_CONFIG, then AppData.
+    if ConfigHandler.Config_Override_Path is not None:
+        return ConfigHandler.Config_Override_Path.expanduser()
+    env = os.getenv('HEADERFORGE_CONFIG')
+    return Path(env).expanduser() if env else get_user_config_path()
