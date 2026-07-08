@@ -59,3 +59,9 @@ def get_file_details(path: Optional[Path], cfg: dict, pcfg: dict, plugins: List[
                 except Exception:
                     pass
     return v
+
+def iter_supported_files(root: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.PluginModule]) -> List[Path]:
+    langs = misc_helper.get_configured_languages(cfg, pcfg)
+    if root.is_file():
+        return [] if config_handler.should_ignore_path(root, root.parent, cfg, pcfg, plugins) or root.suffix.lower() not in langs else [root]
+    return sorted(p for p in root.rglob('*') if p.is_file() and p.suffix.lower() in langs and not config_handler.should_ignore_path(p, root, cfg, pcfg, plugins))

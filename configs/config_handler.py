@@ -1,8 +1,12 @@
 import os
+import fnmatch
 from pathlib import Path
 from typing import Optional
 from datetime import date
 from helpers import json_helper
+from header_forge import plugin
+from typing import List
+from dataschemes import plugin_module
 
 class ConfigHandler:
     """This class manages all of the applications configs"""
@@ -106,3 +110,29 @@ def load_config() -> dict:
     cfg = json_helper.load_json_if_exists(get_user_config_path(), ConfigHandler.Default_Config)
     migrate_config(cfg)
     return cfg
+
+def load_project_config(root: Path) -> dict: return json_helper.load_json_if_exists(
+    get_project_config_path(root), ConfigHandler.Default_Project_Config)
+
+def get_app_directory() -> Path:
+    try:
+        return Path(__file__).resolve().parent
+    except NameError:
+        return Path.cwd()
+
+def should_ignore_path(path: Path, root: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.PluginModule]) -> bool:
+    base = root if root.is_dir() else root.parent
+    try:
+        rel = path.relative_to(base)
+    except ValueError:
+        rel = path
+    if set(rel.parts) & (set(cfg.get('options', {}).get('skip_directories', [])) | set(pcfg.get('ignore_directories', []))):
+        return True
+    if path.name in set(pcfg.get('ignore_files', [])):
+        return True
+    pats = list(cfg.get('options', {}).get('ignore_globs', [])) + \
+        list(pcfg.get('ignore_globs', []))
+    rels = rel.as_posix()
+    if any(fnmatch.fnmatch(path.name, p) or fnmatch.fnmatch(rels, p) for p in pats):
+        return True
+    return any(x is True for x in plugin.plugin_call(plugins, 'should_ignore', path, root, {'global': cfg, 'project': pcfg}))

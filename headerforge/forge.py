@@ -5,7 +5,8 @@ from pathlib import Path
 from headerforge import plugin
 from configs import config_handler
 from helpers import misc_helper, file_helper
-from dataschemes import plugin_module
+from dataschemes import plugin_module, staged_change
+from dataschemes import file_record
 
 class Forge:
 
@@ -147,3 +148,18 @@ def safe_format(line: str, values: dict) -> str:
         return line.format(**values)
     except KeyError as e:
         return line.replace('{'+str(e.args[0])+'}', f'<missing:{e.args[0]}>')
+    
+def stage_change(path: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.PluginModule], overrides: Optional[dict]) -> staged_change.StagedChange:
+    original = file_helper.read_text_lossy(path)
+    existed = extract_managed_header(original) is not None
+    updated = apply_header_to_text(original, path.suffix.lower(
+    ), build_header(path, cfg, pcfg, plugins, overrides), cfg)
+    op = 'Update Header' if existed and original != updated else 'Insert Header' if not existed and original != updated else 'No Change'
+    return staged_change.StagedChange(path, original, updated, op)
+
+def apply_header_to_text(content: str, suffix: str, header: str, cfg: dict) -> str:
+    pre, body = misc_helper.split_preamble(content, suffix, cfg)
+    b = find_managed_header_bounds(body)
+    body = (body[:b[0]]+header+body[b[1]:].lstrip('\n')
+            ) if b else header+body.lstrip('\n')
+    return pre+body
