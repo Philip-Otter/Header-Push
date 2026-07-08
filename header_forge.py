@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import argparse
-import os
-import shutil
 from configs import config_handler
-from helpers import json_helper, file_helper
-from headerforge import forge, plugin, commandline
+from helpers import json_helper
+from headerforge import commandline
 from gui import header_forge_gui
 from pathlib import Path
 
