@@ -62,6 +62,7 @@ class ConfigHandler:
         '.hpp': {'name': 'C++ Header', 'style': 'block', 'line_prefix': ' * ', 'block_open': '/*', 'block_close': ' */'},
         '.html': {'name': 'HTML', 'style': 'block', 'line_prefix': '', 'block_open': '<!--', 'block_close': '-->'},
         '.gd' : {'name': 'GDScript', 'style': 'line', 'line_prefix': '#', 'block_open': '', 'block_close': ''},
+        '.swift': {'name': 'Swift', 'style': 'block', 'line_prefix': '*', 'block_open': '/*', 'block_close': '*/'},
         '.xml': {'name': 'XML', 'style': 'block', 'line_prefix': '', 'block_open': '<!--', 'block_close': '-->'}},
         
     'options': {'backup_before_write': True, 'backup_extension': '.bak', 'global_plugins_enabled': True, 'project_plugins_enabled': True, 'skip_directories': ['.git', '.svn', '.hg', '.vs', '.vscode', 'bin', 'obj', 'node_modules', 'dist', 'build', '__pycache__'], 'ignore_globs': ['*.bak', '*.tmp', '*.generated.*'], 'preserve_shebang': True, 'preserve_xml_declaration': True, 'preserve_encoding_comment': True}}
