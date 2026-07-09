@@ -61,7 +61,7 @@ class ConfigHandler:
         '.cpp': {'name': 'C++', 'style': 'block', 'line_prefix': ' * ', 'block_open': '/*', 'block_close': ' */'},
         '.hpp': {'name': 'C++ Header', 'style': 'block', 'line_prefix': ' * ', 'block_open': '/*', 'block_close': ' */'},
         '.html': {'name': 'HTML', 'style': 'block', 'line_prefix': '', 'block_open': '<!--', 'block_close': '-->'},
-        '.gd' : {'name': 'GDScript', 'style': 'line', 'line_prefix': ' # ', 'block_open': '', 'block_close': ''},
+        '.gd' : {'name': 'GDScript', 'style': 'line', 'line_prefix': '# ', 'block_open': '', 'block_close': ''},
         '.swift': {'name': 'Swift', 'style': 'block', 'line_prefix': ' * ', 'block_open': '/*', 'block_close': '*/'},
         '.xml': {'name': 'XML', 'style': 'block', 'line_prefix': '', 'block_open': '<!--', 'block_close': '-->'}},
         
