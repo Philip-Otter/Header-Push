@@ -11,7 +11,7 @@ from configs import config_handler
 from gui import tool_tip
 from dataschemes import app_state, file_record
 from datetime import date, datetime
-from headerforge import plugin, forge
+from headerforge import forge
 from help import help_handler
 from helpers import json_helper, misc_helper, file_helper
 
@@ -31,8 +31,6 @@ class HeaderForgeApp:
         self.filter_var = tk.StringVar(value='')
         self._style()
         self._shell()
-        self.reload_plugins(initial=True)
-        self._add_plugin_fields()
         self._load_fields()
         self.refresh_all(load_config_editor=False)
         self.log('Startup complete', 'READY')
@@ -80,9 +78,8 @@ class HeaderForgeApp:
         self.staged_tab = ttk.Frame(self.tabs, padding=10)
         self.settings_tab = ttk.Frame(self.tabs, padding=10)
         self.config_tab = ttk.Frame(self.tabs, padding=10)
-        self.plugins_tab = ttk.Frame(self.tabs, padding=10)
         self.help_tab = ttk.Frame(self.tabs, padding=10)
-        for tab, name in [(self.dashboard_tab, 'Dashboard'), (self.builder_tab, 'Header Builder'), (self.preview_tab, 'Preview'), (self.staged_tab, 'Staged Changes'), (self.settings_tab, 'Settings'), (self.config_tab, 'Project Config'), (self.plugins_tab, 'Plugins'), (self.help_tab, 'Help / About')]:
+        for tab, name in [(self.dashboard_tab, 'Dashboard'), (self.builder_tab, 'Header Builder'), (self.preview_tab, 'Preview'), (self.staged_tab, 'Staged Changes'), (self.settings_tab, 'Settings'), (self.config_tab, 'Project Config'), (self.help_tab, 'Help / About')]:
             self.tabs.add(tab, text=name)
         self._dashboard()
         self._builder()
@@ -90,7 +87,6 @@ class HeaderForgeApp:
         self._staged()
         self._settings()
         self._config()
-        self._plugins()
         self._help()
         bar = ttk.Frame(self.root, padding=(8, 2))
         bar.pack(fill='x')
@@ -121,17 +117,8 @@ class HeaderForgeApp:
         t = self._group('Tools')
         self._button(t, 'Create Project Config', self.create_project_config,
                      'Explicitly create project config.')
-        self._button(t, 'Create Plugin Dir', self.create_plugin_dir,
-                     'Explicitly create plugin directory.')
-        self._button(t, 'Sample Plugin', self.create_sample_plugin,
-                     'Explicitly create starter plugin.')
-        self._button(t, 'Reload Plugins', self.reload_plugins,
-                     'Reload trusted plugins.')
         self._button(t, 'Help', lambda: self.tabs.select(
             self.help_tab), 'Open docs.')
-
-    def add_toolbar_button(self, text, command): return self._button(
-        self._group('Plugin'), text, command, 'Plugin-provided action.')
 
     def add_tab(self, title): f = ttk.Frame(
         self.tabs, padding=10); self.tabs.add(f, text=title); return f
@@ -294,14 +281,6 @@ class HeaderForgeApp:
         for args in [('organization', 'Organization'), ('artifact_type', 'Artifact Type', 'combo', self.settings_list('artifact_types', config_handler.ConfigHandler.Default_Project_Types)), ('name', 'Name'), ('codename', 'Codename'), ('owner', 'Owner'), ('title', 'Title'), ('created_date', 'Created Date', 'date'), ('purpose', 'Purpose', 'text'), ('impact', 'Impact', 'text'), ('risk', 'Risk', 'combo', self.settings_list('risk_levels', config_handler.ConfigHandler.Default_Risk_Levels)), ('build_stage', 'Build Stage', 'combo', self.settings_list('build_stages', config_handler.ConfigHandler.Default_Build_Stages)), ('patch_type', 'Patch Type', 'combo', self.settings_list('patch_types', config_handler.ConfigHandler.Default_Patch_Types)), ('version', 'Version'), ('copyright_owner', 'Copyright Owner'), ('copyright_start_year', 'Copyright Start Year'), ('copyright_end_year', 'Copyright End Year'), ('license', 'License')]:
             self._add_field(*args)
 
-    def _add_plugin_fields(self):
-        for fields in plugin.plugin_call(self.state.plugins, 'get_header_fields'):
-            if isinstance(fields, list):
-                for f in fields:
-                    if isinstance(f, dict) and f.get('key') not in self.field_vars:
-                        self._add_field(f.get('key'), f.get('label', f.get('key')), f.get(
-                            'kind', 'entry'), f.get('values'), f.get('default', ''))
-
     def _text_area(self, parent):
         f = ttk.Frame(parent)
         f.pack(fill='both', expand=True)
@@ -394,24 +373,6 @@ class HeaderForgeApp:
         self.config_text = tk.Text(self.config_tab, wrap='none')
         self.config_text.pack(fill='both', expand=True)
 
-    def _plugins(self):
-        top = ttk.Frame(self.plugins_tab)
-        top.pack(fill='x', pady=(0, 6))
-        ttk.Label(top, text='Plugin Manager',
-                  style='Title.TLabel').pack(side='left')
-        ttk.Button(top, text='Create Plugin Dir',
-                   command=self.create_plugin_dir).pack(side='right')
-        ttk.Button(top, text='Sample Plugin', command=self.create_sample_plugin).pack(
-            side='right', padx=4)
-        ttk.Button(top, text='Reload',
-                   command=self.reload_plugins).pack(side='right')
-        self.plugins_tree = ttk.Treeview(self.plugins_tab, columns=(
-            'status', 'name', 'path', 'error'), show='headings')
-        for c, t, w in [('status', 'Status', 90), ('name', 'Name', 180), ('path', 'Path', 620), ('error', 'Error', 500)]:
-            self.plugins_tree.heading(c, text=t)
-            self.plugins_tree.column(c, width=w, anchor='w')
-        self.plugins_tree.pack(fill='both', expand=True)
-
     def _help(self): self.help_text = tk.Text(self.help_tab, wrap='word'); self.help_text.pack(
         fill='both', expand=True); self.help_text.insert('1.0', help_handler.HelpHandler.Help_Docs); self.help_text.configure(state='disabled')
 
@@ -432,8 +393,7 @@ class HeaderForgeApp:
         calendar.month_name[dt.month]); self.day_var.set(str(dt.day)); self.field_vars['created_date'].set(dt.isoformat())
 
     def _load_fields(self):
-        vals = file_helper.get_file_details(None, self.cfg, self.project_cfg,
-                           self.state.plugins, None)
+        vals = file_helper.get_file_details(None, self.cfg, self.project_cfg, None)
         for k, v in self.field_vars.items():
             val = str(vals.get(k, v.get()))
             if k in ('purpose', 'impact'):
@@ -590,7 +550,6 @@ class HeaderForgeApp:
         self.project_cfg = config_handler.load_project_config(self.project_root)
         self.config_text.delete('1.0', 'end')
         self.update_config_state()
-        self.reload_plugins(initial=True)
         self._load_fields()
         self.scan()
         self.log(f'Opened project: {self.project_root}', 'SUCCESS')
@@ -624,7 +583,6 @@ class HeaderForgeApp:
                 self.config_text.get('1.0', 'end-1c').strip() or json.dumps(self.project_cfg)))
             json_helper.save_json(config_handler.get_project_config_path(self.project_root), self.project_cfg)
             selected = self.capture_selected_paths()
-            self.reload_plugins(initial=True)
             self.scan(preserved_selection=selected)
             self.update_config_state()
             self.log(
@@ -648,53 +606,11 @@ class HeaderForgeApp:
     def save_global_config(self): self.apply_settings_in_memory(); json_helper.save_json(config_handler.get_user_config_path(
     ), self.cfg); self.set_config_location_label(); self.log(f'Saved user config: {config_handler.get_user_config_path()}', 'SUCCESS')
 
-    def create_plugin_dir(self):
-        root = self.project_root if self.project_root.is_dir() else self.project_root.parent
-        pd = root/self.project_cfg.get('project_plugins_directory', config_handler.ConfigHandler.Plugin_Directory)
-        pd.mkdir(parents=True, exist_ok=True)
-        self.log(f'Created/verified plugin directory: {pd}', 'SUCCESS')
-        self.reload_plugins(initial=True)
-
-    def create_sample_plugin(self):
-        root = self.project_root if self.project_root.is_dir() else self.project_root.parent
-        pd = root/self.project_cfg.get('project_plugins_directory', config_handler.ConfigHandler.Plugin_Directory)
-        pd.mkdir(parents=True, exist_ok=True)
-        sample = pd/'sample_headerforge_plugin.py'
-        if sample.exists():
-            self.log(f'Sample plugin already exists: {sample}')
-            return
-        sample.write_text(
-            '"Sample HeaderForge plugin."\n\ndef get_header_fields():\n    return [{"key":"change_ticket","label":"Change Ticket","kind":"entry","default":""}]\n\ndef get_template_lines(config):\n    return ["; Change Ticket : {change_ticket}"]\n', encoding='utf-8')
-        self.log(f'Created sample plugin: {sample}', 'SUCCESS')
-        self.reload_plugins(initial=True)
-
-    def reload_plugins(self, initial=False):
-        self.state.plugins = plugin.load_plugins(
-            self.cfg, self.project_root, self.project_cfg)
-        for p in self.state.plugins:
-            if not p.error and callable(getattr(p.module, 'register', None)):
-                try:
-                    p.module.register(self)
-                except Exception:
-                    p.error = traceback.format_exc()
-        self.update_plugin_tree()
-        if not initial:
-            self.log(
-                f"Reloaded plugins. OK: {sum(1 for p in self.state.plugins if not p.error)}. Errors: {sum(1 for p in self.state.plugins if p.error)}.", 'SUCCESS')
-
-    def update_plugin_tree(self):
-        if not hasattr(self, 'plugins_tree'):
-            return
-        self.plugins_tree.delete(*self.plugins_tree.get_children())
-        for p in self.state.plugins:
-            self.plugins_tree.insert('', 'end', values=('ERROR' if p.error else 'OK', p.name, str(
-                p.path), p.error.splitlines()[-1] if p.error else ''))
-
     def scan(self, preserved_selection=None):
         preserved = preserved_selection if preserved_selection is not None else self.capture_selected_paths()
         try:
             files = file_helper.iter_supported_files(
-                self.project_root, self.cfg, self.project_cfg, self.state.plugins)
+                self.project_root, self.cfg, self.project_cfg)
             langmap = misc_helper.get_configured_languages(self.cfg, self.project_cfg)
             base = self.project_root if self.project_root.is_dir() else self.project_root.parent
             rec = []
@@ -812,7 +728,6 @@ class HeaderForgeApp:
             self.update_config_state()
         self.update_dashboard()
         self.update_staged_tree()
-        self.update_plugin_tree()
         self.refresh_previews()
 
     def update_dashboard(self):
@@ -832,8 +747,7 @@ class HeaderForgeApp:
             self.project_cfg.get('project_plugins_directory', config_handler.ConfigHandler.Plugin_Directory)
         lines = [f'Project: {self.project_root}', f"Project config: {'Found' if pc.exists() else 'Missing'} - {pc}", f"Plugin directory: {'Found' if pd.exists() else 'Missing'} - {pd}",
                  f"Global config: {'Found' if config_handler.get_user_config_path().exists() else 'Missing'} - {config_handler.get_user_config_path()}", '', 'Languages:']+([f'- {k}: {v}' for k, v in sorted(by.items())] if by else ['- No files scanned yet.'])
-        lines += ['', 'Plugins:']+([f"- {p.name}: {'ERROR' if p.error else 'OK'} ({p.path})" for p in self.state.plugins] or ['- No plugins loaded.'])+[
-            '', 'Staged Changes:']+([f'- {c.operation}: {c.path}' for c in self.state.staged.values()] or ['- Nothing staged.'])
+        lines += ['', 'Staged Changes:']+([f'- {c.operation}: {c.path}' for c in self.state.staged.values()] or ['- Nothing staged.'])
         self.dashboard_text.delete('1.0', 'end')
         self.dashboard_text.insert('1.0', '\n'.join(lines))
 
@@ -849,10 +763,9 @@ class HeaderForgeApp:
                 temp.write_text(
                     'using System;\n\npublic class ExampleFile { }\n', encoding='utf-8')
                 p = temp
-            ch = forge.stage_change(p, self.cfg, self.project_cfg,
-                              self.state.plugins, self.get_overrides())
+            ch = forge.stage_change(p, self.cfg, self.project_cfg, self.get_overrides())
             header = forge.build_header(
-                p, self.cfg, self.project_cfg, self.state.plugins, self.get_overrides())
+                p, self.cfg, self.project_cfg, self.get_overrides())
             self._set_text(self.header_preview, header)
             self._set_text(self.diff_preview, misc_helper.unified_diff(ch))
             self._set_text(self.full_preview, ch.updated)
@@ -872,8 +785,7 @@ class HeaderForgeApp:
         errors = []
         for r in self.selected_records():
             try:
-                ch = forge.stage_change(r.path, self.cfg, self.project_cfg,
-                                  self.state.plugins, self.get_overrides())
+                ch = forge.stage_change(r.path, self.cfg, self.project_cfg, self.get_overrides())
                 if ch.changed:
                     self.state.staged[r.path] = ch
             except Exception as e:

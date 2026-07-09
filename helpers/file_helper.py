@@ -35,7 +35,7 @@ def atomic_write_text(path: Path, text: str) -> None:
             pass
         raise
 
-def get_file_details(path: Optional[Path], cfg: dict, pcfg: dict, plugins: List[plugin_module.PluginModule], overrides: Optional[dict] = None) -> dict:
+def get_file_details(path: Optional[Path], cfg: dict, pcfg: dict, overrides: Optional[dict] = None) -> dict:
     v = dict(cfg.get('defaults', {}))
     v.update(pcfg.get('header_defaults', {})
              if pcfg.get('enabled', True) else {})
@@ -48,9 +48,7 @@ def get_file_details(path: Optional[Path], cfg: dict, pcfg: dict, plugins: List[
     v['copyright_section'] = forge.format_copyright(v)
     v['license_section'] = f"License   : {v.get('license', '').strip()}" if v.get(
         'license', '').strip() else ''
-    for res in plugin.plugin_call(plugins, 'alter_header_values', v, path, {'global': cfg, 'project': pcfg}):
-        if isinstance(res, dict):
-            v.update(res)
+    
     for _ in range(3):
         for k, x in list(v.items()):
             if isinstance(x, str):
@@ -60,8 +58,8 @@ def get_file_details(path: Optional[Path], cfg: dict, pcfg: dict, plugins: List[
                     pass
     return v
 
-def iter_supported_files(root: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.PluginModule]) -> List[Path]:
+def iter_supported_files(root: Path, cfg: dict, pcfg: dict) -> List[Path]:
     langs = misc_helper.get_configured_languages(cfg, pcfg)
     if root.is_file():
-        return [] if config_handler.should_ignore_path(root, root.parent, cfg, pcfg, plugins) or root.suffix.lower() not in langs else [root]
-    return sorted(p for p in root.rglob('*') if p.is_file() and p.suffix.lower() in langs and not config_handler.should_ignore_path(p, root, cfg, pcfg, plugins))
+        return [] if config_handler.should_ignore_path(root, root.parent, cfg, pcfg) or root.suffix.lower() not in langs else [root]
+    return sorted(p for p in root.rglob('*') if p.is_file() and p.suffix.lower() in langs and not config_handler.should_ignore_path(p, root, cfg, pcfg))
