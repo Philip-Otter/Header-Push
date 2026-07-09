@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Optional
 from datetime import date
 from helpers import json_helper
-from header_forge import plugin
 from typing import List
 from dataschemes import plugin_module
 
@@ -120,7 +119,7 @@ def get_app_directory() -> Path:
     except NameError:
         return Path.cwd()
 
-def should_ignore_path(path: Path, root: Path, cfg: dict, pcfg: dict, plugins: List[plugin_module.PluginModule]) -> bool:
+def should_ignore_path(path: Path, root: Path, cfg: dict, pcfg: dict) -> bool:
     base = root if root.is_dir() else root.parent
     try:
         rel = path.relative_to(base)
@@ -135,7 +134,6 @@ def should_ignore_path(path: Path, root: Path, cfg: dict, pcfg: dict, plugins: L
     rels = rel.as_posix()
     if any(fnmatch.fnmatch(path.name, p) or fnmatch.fnmatch(rels, p) for p in pats):
         return True
-    return any(x is True for x in plugin.plugin_call(plugins, 'should_ignore', path, root, {'global': cfg, 'project': pcfg}))
 
 def config_path() -> Path:
     # Override order: CLI --config, then HEADERFORGE_CONFIG, then AppData.
